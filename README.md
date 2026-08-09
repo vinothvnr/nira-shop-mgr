@@ -20,3 +20,7 @@ The sheet remains header-driven. Add headers such as Amount, Customer, Distribut
 
 ## Security
 The Apps Script `ALLOWED_EMAILS` list is the authorization boundary for sheet access. Keep it limited to intended accounts. The Google login UI should be configured with your own OAuth client ID.
+
+
+## Build 3.1
+The supplied Google OAuth Web Client ID is already configured in `js/app.js`. Add your GitHub Pages origin (for example `https://YOUR-USERNAME.github.io`) to Authorized JavaScript origins in Google Cloud. Do not include the repository path. Never place a client secret in the GitHub Pages code.
