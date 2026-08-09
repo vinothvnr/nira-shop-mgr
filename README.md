@@ -25,3 +25,9 @@ The Apps Script `ALLOWED_EMAILS` list is the authorization boundary for sheet ac
 ## Build 3.1
 The supplied Google OAuth Web Client ID is already configured in `js/app.js`. Add your GitHub Pages origin (for example `https://YOUR-USERNAME.github.io`) to Authorized JavaScript origins in Google Cloud. Do not include the repository path. Never place a client secret in the GitHub Pages code.
 \n\n## Build 4\n- Stores the creator's Google display name in `User Name`.\n- Shows `Amount` only for Cashin/Cashout today; the sheet field is extensible for future log types.\n- Dashboard includes Cashin/Cashout counts and total amounts.\n- Apps Script adds missing headers without relying on column positions.\n
+
+## Build 5 additions
+- Removed the Clear All button.
+- Page title is now **Nira Log Book**.
+- Dashboard has a date selector; dashboard counts/amounts are for the selected date.
+- Added a separate **Daily Trends** tab with 7-day charts for log count, cash flow amounts, cash flow counts, and key status counts.
