@@ -1,0 +1,1 @@
+const Auth=(()=>{const K="logbook_v3_user";let u=null;const load=()=>{try{u=JSON.parse(localStorage.getItem(K)||"null")}catch{u=null}};const save=x=>{u=x;localStorage.setItem(K,JSON.stringify(x))};const clear=()=>{u=null;localStorage.removeItem(K)};return{load,save,clear,isLoggedIn:()=>!!u,getUser:()=>u}})();
