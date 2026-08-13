@@ -69,25 +69,125 @@ $("dashboardTabBtn").onclick=()=>{$("dashboardPanel").classList.remove("hidden")
 $("trendTabBtn").onclick=()=>{$("dashboardPanel").classList.add("hidden");$("trendsPanel").classList.remove("hidden");$("trendTabBtn").classList.add("active");$("dashboardTabBtn").classList.remove("active");renderTrends()};
 renderTrends();
 
-function authUI(){let ok=Auth.isLoggedIn();$("loginCard").classList.toggle("hidden",ok);$("appContent").classList.toggle("hidden",!ok);$("loginBtn").classList.toggle("hidden",ok);$("logoutBtn").classList.toggle("hidden",!ok);$("userSubtitle").textContent=ok?"Signed in: "+Auth.getUser().email:"Activity & cash log";render()}$("logoutBtn").onclick=()=>{Auth.clear();authUI();msg("Logged out")};$("loginBtn").onclick=()=>$("loginCard").scrollIntoView({behavior:"smooth"});window.onGoogleCredential=token=>{let p=JSON.parse(atob(token.split(".")[1].replace(/-/g,"+").replace(/_/g,"/")));Auth.save({email:p.email,name:p.name||p.email,idToken:token});authUI();sync()};window.addEventListener("load",()=>{Auth.load();authUI();if(window.google){google.accounts.id.initialize({client_id:"99773349762-ok4gijm3iedsqu7alk1k61vur86n7v3j.apps.googleusercontent.com",callback:r=>window.onGoogleCredential(r.credential)});google.accounts.id.renderButton($("googleButton"),{theme:"outline",size:"large"})}});render();
-function initGoogleLoginV51(){
-  const target=document.getElementById("googleButton");
-  if(!target) return;
-  if(!window.google || !google.accounts || !google.accounts.id){
-    setTimeout(initGoogleLoginV51,300); return;
-  }
-  google.accounts.id.initialize({
-    client_id:"99773349762-ok4gijm3iedsqu7alk1k61vur86n7v3j.apps.googleusercontent.com",
-    callback:r=>{
-      try{
-        const payload=JSON.parse(atob(r.credential.split(".")[1].replace(/-/g,"+").replace(/_/g,"/")));
-        if(typeof Auth.save==="function") Auth.save({email:payload.email,name:payload.name||payload.email,idToken:r.credential});
-        if(typeof authUI==="function") authUI();
-        if(typeof sync==="function") sync();
-      }catch(e){ if(typeof msg==="function") msg("Google login failed"); }
-    }
-  });
-  target.innerHTML="";
-  google.accounts.id.renderButton(target,{theme:"outline",size:"large",text:"signin_with",shape:"rectangular",width:260});
+
+const GOOGLE_CLIENT_ID = "99773349762-ok4gijm3iedsqu7alk1k61vur86n7v3j.apps.googleusercontent.com";
+let googleReady = false;
+
+function decodeGoogleCredential(credential){
+  const payloadPart = credential.split(".")[1];
+  const normalized = payloadPart.replace(/-/g,"+").replace(/_/g,"/");
+  return JSON.parse(atob(normalized));
 }
-window.addEventListener("load",()=>initGoogleLoginV51());
+
+function handleGoogleCredential(response){
+  try{
+    const p = decodeGoogleCredential(response.credential);
+    Auth.save({
+      email: p.email,
+      name: p.name || p.email,
+      picture: p.picture || "",
+      idToken: response.credential
+    });
+    authUI();
+    sync();
+  }catch(e){
+    console.error(e);
+    msg("Google login failed");
+  }
+}
+
+function initGoogleLogin(){
+  if (!window.google || !window.google.accounts || !window.google.accounts.id){
+    setTimeout(initGoogleLogin, 250);
+    return;
+  }
+
+  if (googleReady) return;
+  googleReady = true;
+
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: handleGoogleCredential,
+    auto_select: false,
+    cancel_on_tap_outside: true
+  });
+
+  const googleButton = $("googleButton");
+  if (googleButton){
+    googleButton.innerHTML = "";
+    google.accounts.id.renderButton(googleButton, {
+      type: "standard",
+      theme: "outline",
+      size: "large",
+      text: "signin_with",
+      shape: "rectangular",
+      width: 280
+    });
+  }
+}
+
+function openGoogleLogin(){
+  const b = $("loginBtn");
+  if (b){
+    b.classList.add("is-busy");
+    b.textContent = "Opening Google…";
+  }
+
+  const finish = () => {
+    if (b){
+      b.classList.remove("is-busy");
+      b.textContent = "Sign in with Google";
+    }
+  };
+
+  if (!googleReady){
+    initGoogleLogin();
+    setTimeout(() => {
+      if (googleReady && window.google?.accounts?.id){
+        google.accounts.id.prompt();
+      }
+      finish();
+    }, 700);
+    return;
+  }
+
+  google.accounts.id.prompt(notification => {
+    // If the prompt is suppressed or unavailable, the rendered Google button
+    // remains available in the login card.
+    if (notification?.isNotDisplayed?.()) {
+      const gb = $("googleButton");
+      if (gb) gb.scrollIntoView({behavior:"smooth", block:"center"});
+    }
+    finish();
+  });
+}
+
+function authUI(){
+  const ok = Auth.isLoggedIn();
+  $("loginCard").classList.toggle("hidden", ok);
+  $("appContent").classList.toggle("hidden", !ok);
+  $("loginBtn").classList.toggle("hidden", ok);
+  $("logoutBtn").classList.toggle("hidden", !ok);
+  $("userSubtitle").textContent = ok
+    ? "Signed in: " + (Auth.getUser()?.email || "")
+    : "Activity & cash log";
+  if (ok) render();
+}
+
+$("loginBtn").onclick = openGoogleLogin;
+$("logoutBtn").onclick = () => {
+  Auth.clear();
+  if (window.google?.accounts?.id) google.accounts.id.disableAutoSelect();
+  authUI();
+  msg("Logged out");
+};
+
+window.onGoogleCredential = handleGoogleCredential;
+
+window.addEventListener("load", () => {
+  Auth.load();
+  authUI();
+  initGoogleLogin();
+});
+
+render();

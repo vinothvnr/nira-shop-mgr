@@ -13,3 +13,7 @@
 button,.btn{transition:transform .1s ease,opacity .15s ease,box-shadow .15s ease}
 button:active,.btn:active{transform:scale(.96)}
 button.is-busy{opacity:.65;pointer-events:none}
+
+button,.btn{transition:transform .1s ease,opacity .15s ease,box-shadow .15s ease}
+button:active,.btn:active{transform:scale(.96)}
+button.is-busy{opacity:.65;pointer-events:none}

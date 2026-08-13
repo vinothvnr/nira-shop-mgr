@@ -37,3 +37,11 @@ The supplied Google OAuth Web Client ID is already configured in `js/app.js`. Ad
 - Visible webpage title and browser title are **Nira Log Book**.
 - Fixed Google Login initialization.
 - Added button press feedback.
+
+## Build 5.2 login hotfix
+
+- Login button now explicitly invokes Google Identity Services.
+- Google Identity Services is initialized with retry logic when the script loads asynchronously.
+- The login card also renders the standard Google sign-in button as a fallback.
+- The supplied OAuth Client ID is retained.
+- Login button shows a brief "Opening Google…" state.
