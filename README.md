@@ -58,3 +58,22 @@ The login issue was caused by Build 5 dashboard JavaScript referencing dashboard
 - Dashboard/trend event handlers no longer run against missing elements.
 - Added defensive chart rendering.
 - Preserved Nira Log Book branding, Google login/logout, amount/user fields, dashboard date selector, daily trends, and Sheets sync.
+
+
+## Build 5.5
+- Fixed the Logs table being incorrectly filtered by the Dashboard date selector.
+- The Logs table now always displays all non-deleted logs, including historical entries.
+- Search operates across all logs.
+- Dashboard cards remain date-specific.
+- Daily Trends remains based on the selected dashboard date.
+- Successful sync now refreshes both the log table and trends.
+
+
+## Build 5.6
+- Rebuilt `app.js` cleanly instead of layering another patch over previous builds.
+- Fixed log-table rendering and dashboard rendering paths.
+- Added defensive localStorage/date parsing.
+- Logs table always displays all non-deleted logs.
+- Dashboard totals use only the selected dashboard date.
+- Added cache-busting query strings (`?v=5.6`) to prevent GitHub Pages/browser cache from serving an older JavaScript file.
+- Preserved Google Login, Sheets sync, amounts, usernames, trends, and button feedback.

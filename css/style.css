@@ -32,3 +32,7 @@ button,.btn{transition:transform .1s ease,opacity .15s ease,box-shadow .15s ease
 button:active,.btn:active{transform:scale(.96)}
 button.is-busy{opacity:.65;pointer-events:none}
 button.is-success{box-shadow:0 0 0 2px rgba(22,163,74,.18)}
+
+.dashboard-controls small{font-size:11px}
+
+/* Build 5.6 */
