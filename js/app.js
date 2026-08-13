@@ -60,12 +60,12 @@ function reset(){editId=null;$("logForm").reset();$("logType").value="Log";$("st
 $("logType").onchange=toggleAmount;
 $("logForm").onsubmit=e=>{e.preventDefault();let old=editId?LogStore.getAll().find(y=>y.id===editId):null,user=Auth.getUser()||{},type=$("logType").value,amount=amountApplicable(type)?Number($("amount").value):null;if(amountApplicable(type)&&(!Number.isFinite(amount)||amount<0)){msg("Enter a valid amount");return}let x={id:editId||crypto.randomUUID(),timestamp:old?old.timestamp:new Date().toISOString(),logType:type,description:$("description").value.trim(),amount,status:$("status").value,userName:old?.userName||user.name||user.email||"Unknown",updatedAt:new Date().toISOString(),updatedBy:user.email||""};if(!x.description)return;LogStore.upsert(x);SheetsSync.enqueue(x);reset();render();sync()};
 $("logTableBody").onclick=e=>{let id=e.target.dataset.e||e.target.dataset.d;if(!id)return;let x=LogStore.getAll().find(y=>y.id===id);if(e.target.dataset.e){editId=id;$("logType").value=x.logType;$("description").value=x.description;$("amount").value=x.amount??"";$("status").value=x.status;$("saveBtn").textContent="Update Log";$("cancelEditBtn").classList.remove("hidden");toggleAmount()}else{x.deleted=true;x.updatedAt=new Date().toISOString();x.updatedBy=Auth.getUser()?.email||"";SheetsSync.enqueue(x);LogStore.upsert(x);render();sync()}};
-$("cancelEditBtn").onclick=reset;$("searchInput").oninput=render;$("clearAllBtn").onclick=()=>{if(confirm("Delete local data?")){LogStore.clear();render()}};$("toggleSync").onclick=()=>{$("syncPanel").classList.toggle("hidden");$("toggleSync").textContent=$("syncPanel").classList.contains("hidden")?"Show Sync Settings":"Hide Sync Settings"};$("sheetUrl").value=SheetsSync.getUrl();$("saveSheetUrl").onclick=()=>{SheetsSync.setUrl($("sheetUrl").value);render();sync()};$("syncNow").onclick=sync;addEventListener("online",sync);
+$("cancelEditBtn").onclick=reset;$("searchInput").oninput=render;render()}};$("toggleSync").onclick=()=>{$("syncPanel").classList.toggle("hidden");$("toggleSync").textContent=$("syncPanel").classList.contains("hidden")?"Show Sync Settings":"Hide Sync Settings"};$("sheetUrl").value=SheetsSync.getUrl();$("saveSheetUrl").onclick=()=>{SheetsSync.setUrl($("sheetUrl").value);render();sync()};$("syncNow").onclick=sync;addEventListener("online",sync);
 
-$("dashboardDate").value=isoDate(new Date());
-$("dashboardDate").onchange=()=>{render();renderTrends()};
-$("dashboardToday").onclick=()=>{$("dashboardDate").value=isoDate(new Date());render();renderTrends()};
-$("dashboardTabBtn").onclick=()=>{$("dashboardPanel").classList.remove("hidden");$("trendsPanel").classList.add("hidden");$("dashboardTabBtn").classList.add("active");$("trendTabBtn").classList.remove("active")};
+if($("dashboardDate")) $("dashboardDate").value=isoDate(new Date());
+if($("dashboardDate")) $("dashboardDate").onchange=()=>{render();renderTrends()};
+$("dashboardToday").onclick=()=>{if($("dashboardDate")) $("dashboardDate").value=isoDate(new Date());render();renderTrends()};
+if($("dashboardTabBtn")) $("dashboardTabBtn").onclick=()=>{$("dashboardPanel").classList.remove("hidden");$("trendsPanel").classList.add("hidden");$("dashboardTabBtn").classList.add("active");$("trendTabBtn").classList.remove("active")};
 $("trendTabBtn").onclick=()=>{$("dashboardPanel").classList.add("hidden");$("trendsPanel").classList.remove("hidden");$("trendTabBtn").classList.add("active");$("dashboardTabBtn").classList.remove("active");renderTrends()};
 renderTrends();
 

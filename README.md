@@ -45,3 +45,7 @@ The supplied Google OAuth Web Client ID is already configured in `js/app.js`. Ad
 - The login card also renders the standard Google sign-in button as a fallback.
 - The supplied OAuth Client ID is retained.
 - Login button shows a brief "Opening Google…" state.
+
+
+## Build 5.3 login hotfix
+The login issue was caused by Build 5 dashboard JavaScript referencing dashboard elements that were missing from the HTML. That JavaScript exception stopped the rest of the page initialization, including the Google login handler. Build 5.3 restores the dashboard elements and makes initialization null-safe.
