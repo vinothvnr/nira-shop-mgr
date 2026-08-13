@@ -49,3 +49,12 @@ The supplied Google OAuth Web Client ID is already configured in `js/app.js`. Ad
 
 ## Build 5.3 login hotfix
 The login issue was caused by Build 5 dashboard JavaScript referencing dashboard elements that were missing from the HTML. That JavaScript exception stopped the rest of the page initialization, including the Google login handler. Build 5.3 restores the dashboard elements and makes initialization null-safe.
+
+
+## Build 5.4
+- Rebuilt the main JavaScript cleanly to remove the syntax error in Build 5.3.
+- Initialization is now DOM-safe and null-safe.
+- Google Identity Services initialization is isolated and retried until available.
+- Dashboard/trend event handlers no longer run against missing elements.
+- Added defensive chart rendering.
+- Preserved Nira Log Book branding, Google login/logout, amount/user fields, dashboard date selector, daily trends, and Sheets sync.
