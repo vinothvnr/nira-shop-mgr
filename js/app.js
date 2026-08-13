@@ -70,3 +70,24 @@ $("trendTabBtn").onclick=()=>{$("dashboardPanel").classList.add("hidden");$("tre
 renderTrends();
 
 function authUI(){let ok=Auth.isLoggedIn();$("loginCard").classList.toggle("hidden",ok);$("appContent").classList.toggle("hidden",!ok);$("loginBtn").classList.toggle("hidden",ok);$("logoutBtn").classList.toggle("hidden",!ok);$("userSubtitle").textContent=ok?"Signed in: "+Auth.getUser().email:"Activity & cash log";render()}$("logoutBtn").onclick=()=>{Auth.clear();authUI();msg("Logged out")};$("loginBtn").onclick=()=>$("loginCard").scrollIntoView({behavior:"smooth"});window.onGoogleCredential=token=>{let p=JSON.parse(atob(token.split(".")[1].replace(/-/g,"+").replace(/_/g,"/")));Auth.save({email:p.email,name:p.name||p.email,idToken:token});authUI();sync()};window.addEventListener("load",()=>{Auth.load();authUI();if(window.google){google.accounts.id.initialize({client_id:"99773349762-ok4gijm3iedsqu7alk1k61vur86n7v3j.apps.googleusercontent.com",callback:r=>window.onGoogleCredential(r.credential)});google.accounts.id.renderButton($("googleButton"),{theme:"outline",size:"large"})}});render();
+function initGoogleLoginV51(){
+  const target=document.getElementById("googleButton");
+  if(!target) return;
+  if(!window.google || !google.accounts || !google.accounts.id){
+    setTimeout(initGoogleLoginV51,300); return;
+  }
+  google.accounts.id.initialize({
+    client_id:"99773349762-ok4gijm3iedsqu7alk1k61vur86n7v3j.apps.googleusercontent.com",
+    callback:r=>{
+      try{
+        const payload=JSON.parse(atob(r.credential.split(".")[1].replace(/-/g,"+").replace(/_/g,"/")));
+        if(typeof Auth.save==="function") Auth.save({email:payload.email,name:payload.name||payload.email,idToken:r.credential});
+        if(typeof authUI==="function") authUI();
+        if(typeof sync==="function") sync();
+      }catch(e){ if(typeof msg==="function") msg("Google login failed"); }
+    }
+  });
+  target.innerHTML="";
+  google.accounts.id.renderButton(target,{theme:"outline",size:"large",text:"signin_with",shape:"rectangular",width:260});
+}
+window.addEventListener("load",()=>initGoogleLoginV51());

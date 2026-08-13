@@ -31,3 +31,9 @@ The supplied Google OAuth Web Client ID is already configured in `js/app.js`. Ad
 - Page title is now **Nira Log Book**.
 - Dashboard has a date selector; dashboard counts/amounts are for the selected date.
 - Added a separate **Daily Trends** tab with 7-day charts for log count, cash flow amounts, cash flow counts, and key status counts.
+
+
+## Build 5.1
+- Visible webpage title and browser title are **Nira Log Book**.
+- Fixed Google Login initialization.
+- Added button press feedback.
