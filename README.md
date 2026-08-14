@@ -11,6 +11,9 @@ Nira Log Book is a static browser app for activity and cash logging. It stores r
 - Header-driven sheet columns so the sheet does not depend on fixed column positions.
 - Soft deletes through the `Deleted` column.
 - Dashboard totals for a selected date.
+- Current outstanding ticket count on the dashboard.
+- Outstanding Tickets page with a Jira-like workflow table.
+- Distributor visit logs create workflow tickets with status-change history.
 - Daily Trends tab with seven-day charts.
 
 ## Google Login
@@ -27,6 +30,14 @@ Only listed Google accounts can sync with the sheet. Replace the old `Code.gs` w
 
 Note: the current backend authorization checks the email sent by the frontend. Server-side Google ID token verification should be added before treating this as a strong security boundary.
 
+## Ticket Workflow
+
+Distributor visit logs are treated as workflow tickets. The first status must be `Ordered`, and each later change moves one step through this order:
+
+`Ordered -> Received -> Payment pending -> Paid cheque -> Paid cash -> Inventory added`
+
+Each ticket stores who created it, when it was created, and a `ticketStatusHistory` array recording every status change with the changing user and timestamp. Tickets are outstanding until they reach `Inventory added`.
+
 ## Two-Way Sync
 
 Browser local data and pending changes are sent to Apps Script. Apps Script returns the current sheet records. `Updated At` decides which version wins when the same record exists locally and in the sheet.
@@ -37,11 +48,11 @@ The sheet remains header-driven. Add headers such as Amount, Customer, Distribut
 
 ## Automated Tests
 
-Run the Add Log regression test with:
+Run the Add Log and ticket workflow regression test with:
 
-`ash
+```bash
 npm test
-` 
+```
 
 ## Manual Test Checklist
 
@@ -51,24 +62,25 @@ Use this checklist after frontend or sync changes:
 2. Sign in with an allowed Google account and confirm the main app appears.
 3. Add a regular Log entry and confirm it appears in the table.
 4. Add Cashin and Cashout entries with amounts and confirm the dashboard totals update for the selected date.
-5. Edit a log before syncing and confirm the queued version reflects the latest edit.
-6. Delete a log and confirm it disappears from the table but remains eligible for soft-delete sync.
-7. Search the Logs table and confirm historical entries are included.
-8. Switch to Daily Trends and confirm all four charts render.
-9. Configure the Apps Script Web App URL, click Sync Now, and confirm the sheet receives records.
-10. Reload the page and confirm locally stored records and auth state behave as expected.
+5. Create a Distributor visit with status `Ordered` and confirm it appears in Outstanding Tickets.
+6. Confirm Distributor visit with `NA` status is rejected.
+7. Move the ticket through the workflow one status at a time and confirm status history records the changing user and timestamp.
+8. Confirm dashboard outstanding ticket count drops when a ticket reaches `Inventory added`.
+9. Search the Logs table and confirm historical entries are included.
+10. Switch to Daily Trends and confirm all four charts render.
+11. Configure the Apps Script Web App URL, click Sync Now, and confirm the sheet receives records.
+12. Reload the page and confirm locally stored records and auth state behave as expected.
 
 ## Build Notes
 
-### Build 5.6
+### Build 5.8
 
-- Rebuilt `app.js` cleanly instead of layering another patch over previous builds.
-- Fixed log-table rendering and dashboard rendering paths.
-- Added defensive localStorage/date parsing.
-- Logs table always displays all non-deleted logs.
-- Dashboard totals use only the selected dashboard date.
-- Added cache-busting query strings (`?v=5.7`) to prevent GitHub Pages/browser cache from serving an older JavaScript file.
-- Preserved Google Login, Sheets sync, amounts, usernames, trends, and button feedback.
+- Added log-backed ticket workflow for Distributor visit logs.
+- Added Outstanding Tickets page with Jira-like table, workflow strip, status lozenges, and one-step transition actions.
+- Added dashboard outstanding-ticket count.
+- Added ticket creator and status-change history metadata.
+- Added `v5.8` header suffix and asset cache-busting query strings.
+- Added automated regression coverage for Add Log and ticket workflow behavior.
 
 ### Maintenance Cleanup
 
@@ -76,4 +88,4 @@ Use this checklist after frontend or sync changes:
 - Updated the sync queue so later edits replace earlier queued records with the same ID.
 - Removed duplicated CSS hotfix blocks.
 - Replaced corrupted display text with ASCII-safe UI strings.
-- Added this manual test checklist.
+- Added manual and automated test notes.

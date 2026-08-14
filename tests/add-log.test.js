@@ -144,7 +144,10 @@ const ids = [
   "syncPanel", "sheetUrl", "saveSheetUrl", "syncNow", "dashboardToday",
   "dashboardTabBtn", "trendTabBtn", "dashboardPanel", "trendsPanel",
   "dailyLogChart", "cashFlowChart", "cashCountChart", "statusChart",
-  "loginCard", "appContent", "loginBtn", "logoutBtn", "userSubtitle", "googleButton"
+  "loginCard", "appContent", "loginBtn", "logoutBtn", "userSubtitle", "googleButton",
+  "statusHelp", "logsPage", "ticketsPage", "logsPageBtn", "ticketsPageBtn",
+  "ticketNavCount", "ticketSummary", "workflowStrip", "refreshTickets",
+  "ticketTableBody", "ticketEmptyState"
 ];
 
 const document = createDocument(ids);
@@ -161,6 +164,9 @@ document.getElementById("loginCard").classList.add("hidden");
 document.getElementById("appContent").classList.add("hidden");
 document.getElementById("logoutBtn").classList.add("hidden");
 document.getElementById("amountField").classList.add("hidden");
+document.getElementById("statusHelp").classList.add("hidden");
+document.getElementById("ticketsPage").classList.add("hidden");
+document.getElementById("logsPageBtn").classList.add("active");
 
 const context = {
   console,
@@ -196,13 +202,55 @@ document.getElementById("logForm").dispatchEvent({
   preventDefault() {}
 });
 
-const logs = JSON.parse(localStorage.getItem("logbook_v3_logs") || "[]");
+let logs = JSON.parse(localStorage.getItem("logbook_v3_logs") || "[]");
 assert.strictEqual(logs.length, 1, "one log should be stored after submitting Add Log");
 assert.strictEqual(logs[0].description, "Automated add log test");
 assert.strictEqual(logs[0].userName, "Tester");
 
-const tableHtml = document.getElementById("logTableBody").innerHTML;
+let tableHtml = document.getElementById("logTableBody").innerHTML;
 assert(tableHtml.includes("Automated add log test"), "new log should render in the table");
 assert.strictEqual(document.getElementById("emptyState").style.display, "none");
 
-console.log("add-log regression test passed");
+document.getElementById("logType").value = "Distributor visit";
+document.getElementById("status").value = "NA";
+document.getElementById("description").value = "Distributor status missing";
+document.getElementById("logForm").dispatchEvent({
+  type: "submit",
+  preventDefault() {}
+});
+
+logs = JSON.parse(localStorage.getItem("logbook_v3_logs") || "[]");
+assert.strictEqual(logs.length, 1, "Distributor visit without workflow status should not be added");
+assert.strictEqual(document.getElementById("toast").textContent, "Select a workflow status for Distributor visit");
+
+document.getElementById("logType").value = "Distributor visit";
+document.getElementById("status").value = "Ordered";
+document.getElementById("description").value = "Distributor workflow test";
+document.getElementById("logForm").dispatchEvent({
+  type: "submit",
+  preventDefault() {}
+});
+
+logs = JSON.parse(localStorage.getItem("logbook_v3_logs") || "[]");
+const ticket = logs.find(log => log.description === "Distributor workflow test");
+assert(ticket, "Distributor visit should be stored as a log-backed ticket");
+assert.strictEqual(ticket.ticketCreatedBy, "Tester");
+assert.strictEqual(ticket.status, "Ordered");
+assert.strictEqual(ticket.ticketStatusHistory.length, 1);
+assert.strictEqual(ticket.ticketStatusHistory[0].status, "Ordered");
+assert.strictEqual(ticket.ticketStatusHistory[0].userName, "Tester");
+
+assert(document.getElementById("ticketTableBody").innerHTML.includes("Distributor workflow test"), "ticket should render in outstanding ticket table");
+assert.strictEqual(document.getElementById("ticketNavCount").textContent, "1");
+assert(document.getElementById("statsGrid").innerHTML.includes("Outstanding Tickets"), "dashboard should show outstanding ticket metric");
+assert(document.getElementById("statsGrid").innerHTML.includes(">1<"), "dashboard outstanding ticket count should be one");
+
+context.advanceTicket(ticket.id);
+logs = JSON.parse(localStorage.getItem("logbook_v3_logs") || "[]");
+const advanced = logs.find(log => log.id === ticket.id);
+assert.strictEqual(advanced.status, "Received");
+assert.strictEqual(advanced.ticketStatusHistory.length, 2);
+assert.strictEqual(advanced.ticketStatusHistory[1].status, "Received");
+assert.strictEqual(advanced.ticketStatusHistory[1].userName, "Tester");
+
+console.log("add-log and ticket workflow regression tests passed");

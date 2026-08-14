@@ -3,6 +3,8 @@
 let editId = null;
 const $ = id => document.getElementById(id);
 const GOOGLE_CLIENT_ID = "99773349762-ok4gijm3iedsqu7alk1k61vur86n7v3j.apps.googleusercontent.com";
+const TICKET_STATUS_FLOW = ["Ordered", "Received", "Payment pending", "Paid cheque", "Paid cash", "Inventory added"];
+const FINAL_TICKET_STATUS = TICKET_STATUS_FLOW[TICKET_STATUS_FLOW.length - 1];
 
 function msg(text) {
   const t = $("toast");
@@ -20,6 +22,108 @@ function esc(v) {
 
 function amountApplicable(type) {
   return type === "Cashin" || type === "Cashout";
+}
+
+function isDistributorVisit(type) {
+  return type === "Distributor visit";
+}
+
+function isTicket(log) {
+  return log && !log.deleted && isDistributorVisit(log.logType);
+}
+
+function isOutstandingTicket(log) {
+  return isTicket(log) && log.status !== FINAL_TICKET_STATUS;
+}
+
+function outstandingTickets(logs) {
+  return logs.filter(isOutstandingTicket);
+}
+
+function statusIndex(status) {
+  const value = String(status || "").toLowerCase();
+  return TICKET_STATUS_FLOW.findIndex(item => item.toLowerCase() === value);
+}
+
+function nextTicketStatus(status) {
+  const index = statusIndex(status);
+  return index >= 0 && index < TICKET_STATUS_FLOW.length - 1 ? TICKET_STATUS_FLOW[index + 1] : "";
+}
+
+function ticketKey(log) {
+  return `NIRA-${String(log.ticketId || log.id || "").replace(/[^a-z0-9]/gi, "").slice(-6).toUpperCase() || "TICKET"}`;
+}
+
+function ticketHistory(log) {
+  const history = log?.ticketStatusHistory;
+  if (Array.isArray(history)) return history;
+  if (typeof history === "string" && history.trim()) {
+    try {
+      const parsed = JSON.parse(history);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+      return [];
+    }
+  }
+  return [];
+}
+
+function latestTicketChange(log) {
+  const history = ticketHistory(log);
+  return history[history.length - 1] || null;
+}
+
+function ticketChangeEntry(status, user, timestamp) {
+  return {
+    status,
+    userName: user.name || user.email || "Unknown",
+    userEmail: user.email || "",
+    timestamp
+  };
+}
+
+function applyTicketWorkflow(record, old, user) {
+  if (!isDistributorVisit(record.logType)) return record;
+
+  const timestamp = record.updatedAt || new Date().toISOString();
+  const history = ticketHistory(old);
+  const last = history[history.length - 1];
+
+  if (!last || last.status !== record.status) {
+    history.push(ticketChangeEntry(record.status, user, timestamp));
+  }
+
+  record.ticketId = old?.ticketId || `ticket-${record.id}`;
+  record.ticketCreatedAt = old?.ticketCreatedAt || record.timestamp;
+  record.ticketCreatedBy = old?.ticketCreatedBy || record.userName || user.name || user.email || "Unknown";
+  record.ticketCreatedByEmail = old?.ticketCreatedByEmail || user.email || record.updatedBy || "";
+  record.ticketStatusHistory = history;
+
+  return record;
+}
+
+function validateTicketTransition(type, status, old) {
+  if (!isDistributorVisit(type)) return true;
+  if (statusIndex(status) < 0) {
+    msg("Select a workflow status for Distributor visit");
+    return false;
+  }
+  if (!old || !isDistributorVisit(old.logType)) {
+    if (status !== TICKET_STATUS_FLOW[0]) {
+      msg("Distributor visit tickets must start as Ordered");
+      return false;
+    }
+    return true;
+  }
+
+  const oldIndex = statusIndex(old.status);
+  const newIndex = statusIndex(status);
+  if (oldIndex >= 0 && newIndex !== oldIndex && newIndex !== oldIndex + 1) {
+    msg(`Move tickets one step at a time: ${old.status} to ${nextTicketStatus(old.status) || old.status}`);
+    return false;
+  }
+
+  return true;
 }
 
 function fmt(v) {
@@ -75,11 +179,14 @@ function updateStatus() {
 function toggleAmount() {
   const type = $("logType")?.value || "Log";
   const enabled = amountApplicable(type);
+  const ticketRequired = isDistributorVisit(type);
   $("amountField")?.classList.toggle("hidden", !enabled);
+  $("statusHelp")?.classList.toggle("hidden", !ticketRequired);
   if ($("amount")) {
     $("amount").required = enabled;
     if (!enabled) $("amount").value = "";
   }
+  if ($("status")) $("status").required = ticketRequired;
 }
 
 function renderDashboard(logs) {
@@ -88,6 +195,7 @@ function renderDashboard(logs) {
 
   const c = {
     "Total Logs": daily.length,
+    "Outstanding Tickets": outstandingTickets(logs).length,
     "Cashin": 0,
     "Cashin Amount": 0,
     "Cashout": 0,
@@ -154,6 +262,84 @@ function renderLogs(logs) {
   if ($("emptyState")) $("emptyState").style.display = filtered.length ? "none" : "block";
 }
 
+function renderTickets(logs) {
+  const tickets = outstandingTickets(logs).sort((a, b) => new Date(b.updatedAt || b.timestamp) - new Date(a.updatedAt || a.timestamp));
+  const body = $("ticketTableBody");
+  const empty = $("ticketEmptyState");
+  const summary = $("ticketSummary");
+  const navCount = $("ticketNavCount");
+  const strip = $("workflowStrip");
+
+  if (summary) summary.textContent = `${tickets.length} open workflow ticket${tickets.length === 1 ? "" : "s"}`;
+  if (navCount) navCount.textContent = String(tickets.length);
+
+  if (strip) {
+    strip.innerHTML = TICKET_STATUS_FLOW.map(status => {
+      const count = tickets.filter(ticket => ticket.status === status).length;
+      return `<div class="workflow-step"><span>${esc(status)}</span><b>${count}</b></div>`;
+    }).join("");
+  }
+
+  if (!body) return;
+
+  body.innerHTML = tickets.map(ticket => {
+    const last = latestTicketChange(ticket);
+    const next = nextTicketStatus(ticket.status);
+    const changedBy = last ? (last.userName || last.userEmail || "Unknown") : "-";
+    const changedAt = last?.timestamp ? new Date(last.timestamp).toLocaleString("en-IN") : "-";
+    const createdAt = ticket.ticketCreatedAt || ticket.timestamp;
+
+    return `
+      <tr>
+        <td><span class="ticket-key">${esc(ticketKey(ticket))}</span></td>
+        <td>
+          <div class="ticket-summary">${esc(ticket.description || "")}</div>
+          <div class="muted">Source log: ${esc(ticket.id || "")}</div>
+        </td>
+        <td>${esc(ticket.ticketCreatedBy || ticket.userName || "Unknown")}</td>
+        <td>${createdAt ? esc(new Date(createdAt).toLocaleString("en-IN")) : "-"}</td>
+        <td><span class="status-lozenge">${esc(ticket.status || "")}</span></td>
+        <td>${esc(changedBy)}<br><span class="muted">${esc(changedAt)}</span></td>
+        <td>${next ? `<button type="button" class="btn primary small" data-advance-ticket-id="${esc(ticket.id)}">Move to ${esc(next)}</button>` : "-"}</td>
+      </tr>
+    `;
+  }).join("");
+
+  if (empty) empty.style.display = tickets.length ? "none" : "block";
+}
+
+function showPage(page) {
+  const tickets = page === "tickets";
+  $("logsPage")?.classList.toggle("hidden", tickets);
+  $("ticketsPage")?.classList.toggle("hidden", !tickets);
+  $("logsPageBtn")?.classList.toggle("active", !tickets);
+  $("ticketsPageBtn")?.classList.toggle("active", tickets);
+  if (tickets) renderTickets(getLogs());
+}
+
+function advanceTicket(id) {
+  const logs = LogStore.getAll();
+  const ticket = logs.find(item => item.id === id && isTicket(item));
+  if (!ticket) return;
+
+  const next = nextTicketStatus(ticket.status);
+  if (!next) return;
+
+  const user = Auth.getUser() || {};
+  const updated = applyTicketWorkflow({
+    ...ticket,
+    status: next,
+    updatedAt: new Date().toISOString(),
+    updatedBy: user.email || ""
+  }, ticket, user);
+
+  LogStore.upsert(updated);
+  SheetsSync.enqueue(updated);
+  render();
+  renderTrends();
+  sync();
+  msg(`Ticket moved to ${next}`);
+}
 function drawChart(id, labels, datasets) {
   const canvas = $(id);
   if (!canvas) return;
@@ -247,6 +433,7 @@ function render() {
   const logs=getLogs();
   renderLogs(logs);
   renderDashboard(logs);
+  renderTickets(logs);
   updateStatus();
 }
 
@@ -305,23 +492,27 @@ function bindAppEvents() {
     const type=$("logType")?.value||"Log";
     const description=($("description")?.value||"").trim();
     const amount=amountApplicable(type) ? Number($("amount")?.value) : null;
+    const status=$("status")?.value||"NA";
 
     if(!description){msg("Enter a description");return;}
     if(amountApplicable(type) && (!Number.isFinite(amount)||amount<0)){
       msg("Enter a valid amount");return;
     }
+    if(!validateTicketTransition(type,status,old)) return;
 
-    const record={
+    let record={
       id:editId||("log-"+Date.now()+"-"+Math.random().toString(36).slice(2)),
       timestamp:old?.timestamp||new Date().toISOString(),
       logType:type,
       description,
       amount,
-      status:$("status")?.value||"NA",
+      status,
       userName:old?.userName||user.name||user.email||"Unknown",
       updatedAt:new Date().toISOString(),
       updatedBy:user.email||""
     };
+
+    record = applyTicketWorkflow(record, old, user);
 
     LogStore.upsert(record);
     SheetsSync.enqueue(record);
@@ -364,6 +555,15 @@ function bindAppEvents() {
       sync();
     }
   });
+
+  $("ticketTableBody")?.addEventListener("click",e=>{
+    const advance=e.target.closest("[data-advance-ticket-id]");
+    if(advance) advanceTicket(advance.dataset.advanceTicketId);
+  });
+
+  $("logsPageBtn")?.addEventListener("click",()=>showPage("logs"));
+  $("ticketsPageBtn")?.addEventListener("click",()=>showPage("tickets"));
+  $("refreshTickets")?.addEventListener("click",()=>renderTickets(getLogs()));
 
   $("cancelEditBtn")?.addEventListener("click",resetForm);
   $("searchInput")?.addEventListener("input",render);
