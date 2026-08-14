@@ -24,7 +24,7 @@ function amountApplicable(type) {
 
 function fmt(v) {
   const n = Number(v);
-  if (!Number.isFinite(n)) return "—";
+  if (!Number.isFinite(n)) return "-";
   return n.toLocaleString("en-IN", {minimumFractionDigits:2, maximumFractionDigits:2});
 }
 
@@ -120,7 +120,7 @@ function renderDashboard(logs) {
   const grid = $("statsGrid");
   if (grid) {
     grid.innerHTML = Object.entries(c).map(([k,v]) =>
-      `<div class="stat"><div>${esc(k)}</div><b>${k.endsWith("Amount") ? "₹" + fmt(v) : v}</b></div>`
+      `<div class="stat"><div>${esc(k)}</div><b>${k.endsWith("Amount") ? "Rs. " + fmt(v) : v}</b></div>`
     ).join("");
   }
 }
@@ -138,11 +138,11 @@ function renderLogs(logs) {
 
   body.innerHTML = filtered.map(x => `
     <tr>
-      <td>${x.timestamp ? esc(new Date(x.timestamp).toLocaleString("en-IN")) : "—"}</td>
+      <td>${x.timestamp ? esc(new Date(x.timestamp).toLocaleString("en-IN")) : "-"}</td>
       <td class="user-cell">${esc(x.userName || "Unknown")}</td>
       <td>${esc(x.logType || "")}</td>
       <td>${esc(x.description || "")}</td>
-      <td class="amount-cell">${amountApplicable(x.logType) ? fmt(x.amount) : "—"}</td>
+      <td class="amount-cell">${amountApplicable(x.logType) ? fmt(x.amount) : "-"}</td>
       <td>${esc(x.status || "")}</td>
       <td>
         <button type="button" data-edit-id="${esc(x.id)}">Edit</button>
@@ -325,7 +325,7 @@ function bindAppEvents() {
 
     LogStore.upsert(record);
     SheetsSync.enqueue(record);
-    buttonFeedback($("saveBtn"),editId?"Updating…":"Saving…",editId?"Updated ✓":"Saved ✓");
+    buttonFeedback($("saveBtn"),editId?"Updating...":"Saving...",editId?"Updated OK":"Saved OK");
     resetForm();
     render();
     renderTrends();
@@ -377,13 +377,13 @@ function bindAppEvents() {
   if($("sheetUrl")) $("sheetUrl").value=SheetsSync.getUrl();
   $("saveSheetUrl")?.addEventListener("click",()=>{
     SheetsSync.setUrl($("sheetUrl").value);
-    buttonFeedback($("saveSheetUrl"),"Saving…","Saved ✓");
+    buttonFeedback($("saveSheetUrl"),"Saving...","Saved OK");
     render();
     sync();
   });
 
   $("syncNow")?.addEventListener("click",()=>{
-    buttonFeedback($("syncNow"),"Syncing…","Synced ✓");
+    buttonFeedback($("syncNow"),"Syncing...","Synced OK");
     sync();
   });
 
@@ -469,9 +469,9 @@ function authUI(){
 }
 
 function openGoogleLogin(){
-  buttonFeedback($("loginBtn"),"Opening Google…",null);
+  buttonFeedback($("loginBtn"),"Opening Google...",null);
   if(!window.google?.accounts?.id){
-    msg("Google sign-in is still loading…");
+    msg("Google sign-in is still loading...");
     initGoogleLogin();
     return;
   }
@@ -517,3 +517,4 @@ if(document.readyState==="loading"){
 }else{
   init();
 }
+

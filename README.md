@@ -1,75 +1,59 @@
-# LogBook v3
+# Nira Log Book
 
-Features: two-way Google Sheets sync, hidden sync settings, Google login/logout, authorized-user allowlist, and header-driven extensible columns.
+Nira Log Book is a static browser app for activity and cash logging. It stores records locally in the browser and can sync them two-way with a Google Sheet through Google Apps Script.
 
-## Google login
-Create a Google OAuth Web Client ID and replace `YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com` in `js/app.js`. Add your GitHub Pages origin as an authorized JavaScript origin, e.g. `https://USERNAME.github.io`.
+## Features
 
-## Apps Script authorization
-In Apps Script -> Project Settings -> Script Properties add:
+- Google login/logout with Google Identity Services.
+- Local-first log storage in `localStorage`.
+- Optional two-way Google Sheets sync through an Apps Script Web App URL.
+- Authorized-user allowlist in Apps Script through `ALLOWED_EMAILS`.
+- Header-driven sheet columns so the sheet does not depend on fixed column positions.
+- Soft deletes through the `Deleted` column.
+- Dashboard totals for a selected date.
+- Daily Trends tab with seven-day charts.
+
+## Google Login
+
+Create a Google OAuth Web Client ID and configure it in `js/app.js`. Add your GitHub Pages origin as an authorized JavaScript origin, for example `https://USERNAME.github.io`. Do not include the repository path, and never place a client secret in GitHub Pages code.
+
+## Apps Script Authorization
+
+In Apps Script -> Project Settings -> Script Properties, add:
+
 `ALLOWED_EMAILS` = `your@gmail.com,another@gmail.com`
-Only listed Google accounts can sync with the sheet.
 
-Replace the old Code.gs with `google-app-script/Code.gs`, then redeploy the Web App as Execute as Me / Who has access Anyone. Keep the `/exec` URL in the app.
+Only listed Google accounts can sync with the sheet. Replace the old `Code.gs` with `google-app-script/Code.gs`, then redeploy the Web App as Execute as Me / Who has access Anyone. Keep the `/exec` URL in the app sync settings.
 
-## Two-way sync
-Browser local data and pending changes are sent to Apps Script; Apps Script returns the current sheet records. `Updated At` decides which version wins. Deletes are soft deletes using `Deleted`.
+Note: the current backend authorization checks the email sent by the frontend. Server-side Google ID token verification should be added before treating this as a strong security boundary.
 
-## Extensible columns
-The sheet remains header-driven. Add headers such as Amount, Customer, Distributor, Product, Quantity, Payment Mode, Location or Remarks. Future named app fields can map to these headers without depending on column position.
+## Two-Way Sync
 
-## Security
-The Apps Script `ALLOWED_EMAILS` list is the authorization boundary for sheet access. Keep it limited to intended accounts. The Google login UI should be configured with your own OAuth client ID.
+Browser local data and pending changes are sent to Apps Script. Apps Script returns the current sheet records. `Updated At` decides which version wins when the same record exists locally and in the sheet.
 
+## Extensible Columns
 
-## Build 3.1
-The supplied Google OAuth Web Client ID is already configured in `js/app.js`. Add your GitHub Pages origin (for example `https://YOUR-USERNAME.github.io`) to Authorized JavaScript origins in Google Cloud. Do not include the repository path. Never place a client secret in the GitHub Pages code.
-\n\n## Build 4\n- Stores the creator's Google display name in `User Name`.\n- Shows `Amount` only for Cashin/Cashout today; the sheet field is extensible for future log types.\n- Dashboard includes Cashin/Cashout counts and total amounts.\n- Apps Script adds missing headers without relying on column positions.\n
+The sheet remains header-driven. Add headers such as Amount, Customer, Distributor, Product, Quantity, Payment Mode, Location, or Remarks. Future named app fields can map to these headers without depending on column position.
 
-## Build 5 additions
-- Removed the Clear All button.
-- Page title is now **Nira Log Book**.
-- Dashboard has a date selector; dashboard counts/amounts are for the selected date.
-- Added a separate **Daily Trends** tab with 7-day charts for log count, cash flow amounts, cash flow counts, and key status counts.
+## Manual Test Checklist
 
+Use this checklist after frontend or sync changes:
 
-## Build 5.1
-- Visible webpage title and browser title are **Nira Log Book**.
-- Fixed Google Login initialization.
-- Added button press feedback.
+1. Load `index.html` or the GitHub Pages deployment and confirm the login card renders without console errors.
+2. Sign in with an allowed Google account and confirm the main app appears.
+3. Add a regular Log entry and confirm it appears in the table.
+4. Add Cashin and Cashout entries with amounts and confirm the dashboard totals update for the selected date.
+5. Edit a log before syncing and confirm the queued version reflects the latest edit.
+6. Delete a log and confirm it disappears from the table but remains eligible for soft-delete sync.
+7. Search the Logs table and confirm historical entries are included.
+8. Switch to Daily Trends and confirm all four charts render.
+9. Configure the Apps Script Web App URL, click Sync Now, and confirm the sheet receives records.
+10. Reload the page and confirm locally stored records and auth state behave as expected.
 
-## Build 5.2 login hotfix
+## Build Notes
 
-- Login button now explicitly invokes Google Identity Services.
-- Google Identity Services is initialized with retry logic when the script loads asynchronously.
-- The login card also renders the standard Google sign-in button as a fallback.
-- The supplied OAuth Client ID is retained.
-- Login button shows a brief "Opening Google…" state.
+### Build 5.6
 
-
-## Build 5.3 login hotfix
-The login issue was caused by Build 5 dashboard JavaScript referencing dashboard elements that were missing from the HTML. That JavaScript exception stopped the rest of the page initialization, including the Google login handler. Build 5.3 restores the dashboard elements and makes initialization null-safe.
-
-
-## Build 5.4
-- Rebuilt the main JavaScript cleanly to remove the syntax error in Build 5.3.
-- Initialization is now DOM-safe and null-safe.
-- Google Identity Services initialization is isolated and retried until available.
-- Dashboard/trend event handlers no longer run against missing elements.
-- Added defensive chart rendering.
-- Preserved Nira Log Book branding, Google login/logout, amount/user fields, dashboard date selector, daily trends, and Sheets sync.
-
-
-## Build 5.5
-- Fixed the Logs table being incorrectly filtered by the Dashboard date selector.
-- The Logs table now always displays all non-deleted logs, including historical entries.
-- Search operates across all logs.
-- Dashboard cards remain date-specific.
-- Daily Trends remains based on the selected dashboard date.
-- Successful sync now refreshes both the log table and trends.
-
-
-## Build 5.6
 - Rebuilt `app.js` cleanly instead of layering another patch over previous builds.
 - Fixed log-table rendering and dashboard rendering paths.
 - Added defensive localStorage/date parsing.
@@ -77,3 +61,11 @@ The login issue was caused by Build 5 dashboard JavaScript referencing dashboard
 - Dashboard totals use only the selected dashboard date.
 - Added cache-busting query strings (`?v=5.6`) to prevent GitHub Pages/browser cache from serving an older JavaScript file.
 - Preserved Google Login, Sheets sync, amounts, usernames, trends, and button feedback.
+
+### Maintenance Cleanup
+
+- Reformatted storage, auth, and Sheets sync modules for maintainability.
+- Updated the sync queue so later edits replace earlier queued records with the same ID.
+- Removed duplicated CSS hotfix blocks.
+- Replaced corrupted display text with ASCII-safe UI strings.
+- Added this manual test checklist.
