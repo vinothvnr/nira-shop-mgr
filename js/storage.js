@@ -22,3 +22,7 @@ const LogStore = (() => {
 
   return { getAll, upsert, remove, clear };
 })();
+
+if (typeof window !== 'undefined') {
+  window.LogStore = LogStore;
+}

@@ -283,3 +283,11 @@ td {
     flex-wrap: wrap;
   }
 }
+
+.version {
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: 6px;
+  vertical-align: middle;
+}

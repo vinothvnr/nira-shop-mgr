@@ -35,6 +35,14 @@ Browser local data and pending changes are sent to Apps Script. Apps Script retu
 
 The sheet remains header-driven. Add headers such as Amount, Customer, Distributor, Product, Quantity, Payment Mode, Location, or Remarks. Future named app fields can map to these headers without depending on column position.
 
+## Automated Tests
+
+Run the Add Log regression test with:
+
+`ash
+npm test
+` 
+
 ## Manual Test Checklist
 
 Use this checklist after frontend or sync changes:
@@ -59,7 +67,7 @@ Use this checklist after frontend or sync changes:
 - Added defensive localStorage/date parsing.
 - Logs table always displays all non-deleted logs.
 - Dashboard totals use only the selected dashboard date.
-- Added cache-busting query strings (`?v=5.6`) to prevent GitHub Pages/browser cache from serving an older JavaScript file.
+- Added cache-busting query strings (`?v=5.7`) to prevent GitHub Pages/browser cache from serving an older JavaScript file.
 - Preserved Google Login, Sheets sync, amounts, usernames, trends, and button feedback.
 
 ### Maintenance Cleanup

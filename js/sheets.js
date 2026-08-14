@@ -47,3 +47,7 @@ const SheetsSync = (() => {
 
   return { getUrl, setUrl, queue, enqueue, sync };
 })();
+
+if (typeof window !== 'undefined') {
+  window.SheetsSync = SheetsSync;
+}
