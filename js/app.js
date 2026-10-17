@@ -476,7 +476,7 @@ async function sync() {
   } catch(e) {
     console.error("Sync failed:",e);
     render();
-    msg("Sync failed; local data kept");
+    msg(`Sync failed: ${e?.message || "Unknown sync error"}`);
     updateStatus();
   }
 }
