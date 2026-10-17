@@ -1,9 +1,17 @@
 const SheetsSync = (() => {
   const U = "logbook_v3_url";
   const Q = "logbook_v3_queue";
-  const DEFAULT_URL = "https://script.google.com/macros/s/AKfycbxtHo71KX80Wtwx3TMOXsHC4xJ8ko83z_IPiqGqMzTtfbYa7bTavzBDkKA5jXhC455XAA/exec";
+  const DEFAULT_URL = "https://script.google.com/a/macros/nirasupermart.in/s/AKfycbyMTelZHmsaQljQNrsxL_TTZ52hjmO4_2d4Iae8QKiCup8w_iHlsYmFyzDpyGACAwN1aA/exec";
+  const LEGACY_URL = "https://script.google.com/macros/s/AKfycbxtHo71KX80Wtwx3TMOXsHC4xJ8ko83z_IPiqGqMzTtfbYa7bTavzBDkKA5jXhC455XAA/exec";
 
-  const getUrl = () => localStorage.getItem(U) || DEFAULT_URL;
+  const getUrl = () => {
+    const stored = localStorage.getItem(U) || "";
+    if (!stored || stored === LEGACY_URL) {
+      localStorage.setItem(U, DEFAULT_URL);
+      return DEFAULT_URL;
+    }
+    return stored;
+  };
   const setUrl = value => localStorage.setItem(U, value.trim());
   const queue = () => JSON.parse(localStorage.getItem(Q) || "[]");
   const saveQueue = records => localStorage.setItem(Q, JSON.stringify(records));
