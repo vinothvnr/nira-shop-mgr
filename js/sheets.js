@@ -1,8 +1,9 @@
 const SheetsSync = (() => {
   const U = "logbook_v3_url";
   const Q = "logbook_v3_queue";
+  const DEFAULT_URL = "https://script.google.com/macros/s/AKfycbxtHo71KX80Wtwx3TMOXsHC4xJ8ko83z_IPiqGqMzTtfbYa7bTavzBDkKA5jXhC455XAA/exec";
 
-  const getUrl = () => localStorage.getItem(U) || "";
+  const getUrl = () => localStorage.getItem(U) || DEFAULT_URL;
   const setUrl = value => localStorage.setItem(U, value.trim());
   const queue = () => JSON.parse(localStorage.getItem(Q) || "[]");
   const saveQueue = records => localStorage.setItem(Q, JSON.stringify(records));

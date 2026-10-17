@@ -78,12 +78,14 @@
               <h2>Google Sheets</h2>
               <span id="syncDetails" class="muted">Settings hidden</span>
             </div>
-            <button id="toggleSync" class="btn secondary small">Show Sync Settings</button>
+            <div class="actions">
+              <button id="toggleSync" class="btn secondary small">Show Sync Settings</button>
+              <button id="syncNow" class="btn secondary small">Sync Now</button>
+            </div>
           </div>
           <div id="syncPanel" class="hidden">
             <input id="sheetUrl" class="search" placeholder="Google Apps Script Web App URL" value="https://script.google.com/macros/s/AKfycbxtHo71KX80Wtwx3TMOXsHC4xJ8ko83z_IPiqGqMzTtfbYa7bTavzBDkKA5jXhC455XAA/exec">
             <button id="saveSheetUrl" class="btn primary">Save URL</button>
-            <button id="syncNow" class="btn secondary">Sync Now</button>
           </div>
         </section>
 
@@ -155,9 +157,9 @@
   </main>
 
   <div id="toast" class="toast"></div>
-  <script src="js/storage.js?v=5.8"></script>
-  <script src="js/auth.js?v=5.8"></script>
-  <script src="js/sheets.js?v=5.8"></script>
-  <script src="js/app.js?v=5.8"></script>
+  <script src="js/storage.js?v=5.9"></script>
+  <script src="js/auth.js?v=5.9"></script>
+  <script src="js/sheets.js?v=5.9"></script>
+  <script src="js/app.js?v=5.9"></script>
 </body>
 </html>
