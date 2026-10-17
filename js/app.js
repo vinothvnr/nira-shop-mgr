@@ -51,7 +51,8 @@ function nextTicketStatus(status) {
 }
 
 function ticketKey(log) {
-  return `NIRA-${String(log.ticketId || log.id || "").replace(/[^a-z0-9]/gi, "").slice(-6).toUpperCase() || "TICKET"}`;
+  const value = String(log.ticketId || "").trim().toUpperCase();
+  return /^NIRA-\d+$/.test(value) ? value : "Pending ID";
 }
 
 function ticketHistory(log) {
@@ -93,7 +94,8 @@ function applyTicketWorkflow(record, old, user) {
     history.push(ticketChangeEntry(record.status, user, timestamp));
   }
 
-  record.ticketId = old?.ticketId || `ticket-${record.id}`;
+  const existingTicketId = old?.ticketId || record.ticketId || "";
+  record.ticketId = /^NIRA-\d+$/i.test(existingTicketId) ? existingTicketId.toUpperCase() : "";
   record.ticketCreatedAt = old?.ticketCreatedAt || record.timestamp;
   record.ticketCreatedBy = old?.ticketCreatedBy || record.userName || user.name || user.email || "Unknown";
   record.ticketCreatedByEmail = old?.ticketCreatedByEmail || user.email || record.updatedBy || "";
@@ -157,7 +159,8 @@ function selectedDashboardDate() {
 function getLogs() {
   try {
     const raw = LogStore.getAll();
-    return Array.isArray(raw) ? raw.filter(x => x && !x.deleted) : [];
+    if (!Array.isArray(raw)) return [];
+    return raw.filter(x => x && !x.deleted);
   } catch (e) {
     console.error("Unable to read LogStore:", e);
     return [];
@@ -235,16 +238,34 @@ function renderDashboard(logs) {
 
 function renderLogs(logs) {
   const query = ($("searchInput")?.value || "").trim().toLowerCase();
-  const filtered = !query ? logs : logs.filter(x =>
-    [
-      x.description, x.logType, x.status, x.userName, x.amount
-    ].join(" ").toLowerCase().includes(query)
-  );
+  const timestampFilter = $("filterTimestamp")?.value || "";
+  const userFilter = ($("filterUser")?.value || "").trim().toLowerCase();
+  const logTypeFilter = $("filterLogType")?.value || "";
+  const descriptionFilter = ($("filterDescription")?.value || "").trim().toLowerCase();
+  const amountFilter = $("filterAmount")?.value || "";
+  const statusFilter = $("filterStatus")?.value || "";
+  const filtered = !query ? logs : logs.filter(x => {
+    const timestamp = x.timestamp ? new Date(x.timestamp).toLocaleString("en-IN") : "";
+    return [timestamp, x.description, x.logType, x.status, x.userName, x.amount]
+      .map(value => String(value ?? ""))
+      .join(" ")
+      .toLowerCase()
+      .includes(query);
+  });
+  const columnFiltered = filtered.filter(x => {
+    const timestampMatches = !timestampFilter || dateKey(x.timestamp) === timestampFilter;
+    const userMatches = !userFilter || String(x.userName || "Unknown").toLowerCase().includes(userFilter);
+    const typeMatches = !logTypeFilter || x.logType === logTypeFilter;
+    const descriptionMatches = !descriptionFilter || String(x.description || "").toLowerCase().includes(descriptionFilter);
+    const amountMatches = !amountFilter || Number(x.amount) === Number(amountFilter);
+    const statusMatches = !statusFilter || (x.status || "") === statusFilter;
+    return timestampMatches && userMatches && typeMatches && descriptionMatches && amountMatches && statusMatches;
+  });
 
   const body = $("logTableBody");
   if (!body) return;
 
-  body.innerHTML = filtered.map(x => `
+  body.innerHTML = columnFiltered.map(x => `
     <tr>
       <td>${x.timestamp ? esc(new Date(x.timestamp).toLocaleString("en-IN")) : "-"}</td>
       <td class="user-cell">${esc(x.userName || "Unknown")}</td>
@@ -252,26 +273,54 @@ function renderLogs(logs) {
       <td>${esc(x.description || "")}</td>
       <td class="amount-cell">${amountApplicable(x.logType) ? fmt(x.amount) : "-"}</td>
       <td>${esc(x.status || "")}</td>
-      <td>
-        <button type="button" data-edit-id="${esc(x.id)}">Edit</button>
-        <button type="button" data-delete-id="${esc(x.id)}">Delete</button>
-      </td>
     </tr>
   `).join("");
 
-  if ($("emptyState")) $("emptyState").style.display = filtered.length ? "none" : "block";
+  if ($("emptyState")) $("emptyState").style.display = columnFiltered.length ? "none" : "block";
 }
 
 function renderTickets(logs) {
-  const tickets = outstandingTickets(logs).sort((a, b) => new Date(b.updatedAt || b.timestamp) - new Date(a.updatedAt || a.timestamp));
+  const tickets = logs.filter(isTicket).sort((a, b) => new Date(b.updatedAt || b.timestamp) - new Date(a.updatedAt || a.timestamp));
   const body = $("ticketTableBody");
   const empty = $("ticketEmptyState");
   const summary = $("ticketSummary");
   const navCount = $("ticketNavCount");
   const strip = $("workflowStrip");
+  const statuses = [...TICKET_STATUS_FLOW, ...new Set(tickets.map(ticket => ticket.status).filter(status => status && !TICKET_STATUS_FLOW.includes(status)))];
+  const renderTable = (status, rows) => `
+    <section class="vendor-status-group">
+      <div class="vendor-status-heading"><h3>${esc(status || "No status")}</h3><span class="nav-count">${rows.length}</span></div>
+      <div class="table jira-table">
+        <table>
+          <thead>
+            <tr><th>Ticket ID</th><th>Summary</th><th>Created By</th><th>Created</th><th>Status</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+            ${rows.map(ticket => {
+              const next = nextTicketStatus(ticket.status);
+              const createdAt = ticket.ticketCreatedAt || ticket.timestamp;
+              return `
+                <tr>
+                  <td><span class="ticket-key">${esc(ticketKey(ticket))}</span></td>
+                  <td><div class="ticket-summary">${esc(ticket.description || "")}</div></td>
+                  <td>${esc(ticket.ticketCreatedBy || ticket.userName || "Unknown")}</td>
+                  <td>${createdAt ? esc(new Date(createdAt).toLocaleString("en-IN")) : "-"}</td>
+                  <td><span class="status-lozenge">${esc(ticket.status || "")}</span></td>
+                  <td>${next ? `<button type="button" class="btn primary small" data-advance-ticket-id="${esc(ticket.id)}">Move to ${esc(next)}</button>` : "-"}</td>
+                </tr>
+              `;
+            }).join("") || `<tr><td colspan="6" class="muted">No vendor records in this status.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `;
 
-  if (summary) summary.textContent = `${tickets.length} open workflow ticket${tickets.length === 1 ? "" : "s"}`;
-  if (navCount) navCount.textContent = String(tickets.length);
+  if (summary) {
+    const openCount = outstandingTickets(logs).length;
+    summary.textContent = `${openCount} open workflow ticket${openCount === 1 ? "" : "s"} · ${tickets.length} total vendor record${tickets.length === 1 ? "" : "s"}`;
+  }
+  if (navCount) navCount.textContent = String(outstandingTickets(logs).length);
 
   if (strip) {
     strip.innerHTML = TICKET_STATUS_FLOW.map(status => {
@@ -281,30 +330,7 @@ function renderTickets(logs) {
   }
 
   if (!body) return;
-
-  body.innerHTML = tickets.map(ticket => {
-    const last = latestTicketChange(ticket);
-    const next = nextTicketStatus(ticket.status);
-    const changedBy = last ? (last.userName || last.userEmail || "Unknown") : "-";
-    const changedAt = last?.timestamp ? new Date(last.timestamp).toLocaleString("en-IN") : "-";
-    const createdAt = ticket.ticketCreatedAt || ticket.timestamp;
-
-    return `
-      <tr>
-        <td><span class="ticket-key">${esc(ticketKey(ticket))}</span></td>
-        <td>
-          <div class="ticket-summary">${esc(ticket.description || "")}</div>
-          <div class="muted">Source log: ${esc(ticket.id || "")}</div>
-        </td>
-        <td>${esc(ticket.ticketCreatedBy || ticket.userName || "Unknown")}</td>
-        <td>${createdAt ? esc(new Date(createdAt).toLocaleString("en-IN")) : "-"}</td>
-        <td><span class="status-lozenge">${esc(ticket.status || "")}</span></td>
-        <td>${esc(changedBy)}<br><span class="muted">${esc(changedAt)}</span></td>
-        <td>${next ? `<button type="button" class="btn primary small" data-advance-ticket-id="${esc(ticket.id)}">Move to ${esc(next)}</button>` : "-"}</td>
-      </tr>
-    `;
-  }).join("");
-
+  body.innerHTML = statuses.map(status => renderTable(status, tickets.filter(ticket => ticket.status === status))).join("");
   if (empty) empty.style.display = tickets.length ? "none" : "block";
 }
 
@@ -523,39 +549,6 @@ function bindAppEvents() {
     sync();
   });
 
-  $("logTableBody")?.addEventListener("click",e=>{
-    const edit=e.target.closest("[data-edit-id]");
-    const del=e.target.closest("[data-delete-id]");
-
-    if(edit){
-      const x=LogStore.getAll().find(y=>y.id===edit.dataset.editId);
-      if(!x)return;
-      editId=x.id;
-      $("logType").value=x.logType||"Log";
-      $("description").value=x.description||"";
-      $("amount").value=x.amount??"";
-      $("status").value=x.status||"NA";
-      $("saveBtn").textContent="Update Log";
-      $("cancelEditBtn")?.classList.remove("hidden");
-      toggleAmount();
-      window.scrollTo({top:0,behavior:"smooth"});
-      return;
-    }
-
-    if(del){
-      const x=LogStore.getAll().find(y=>y.id===del.dataset.deleteId);
-      if(!x)return;
-      x.deleted=true;
-      x.updatedAt=new Date().toISOString();
-      x.updatedBy=Auth.getUser()?.email||"";
-      LogStore.upsert(x);
-      SheetsSync.enqueue(x);
-      render();
-      renderTrends();
-      sync();
-    }
-  });
-
   $("ticketTableBody")?.addEventListener("click",e=>{
     const advance=e.target.closest("[data-advance-ticket-id]");
     if(advance) advanceTicket(advance.dataset.advanceTicketId);
@@ -566,7 +559,11 @@ function bindAppEvents() {
   $("refreshTickets")?.addEventListener("click",()=>renderTickets(getLogs()));
 
   $("cancelEditBtn")?.addEventListener("click",resetForm);
-  $("searchInput")?.addEventListener("input",render);
+  $("searchInput")?.addEventListener("input",()=>renderLogs(getLogs()));
+  $("searchInput")?.addEventListener("search",()=>renderLogs(getLogs()));
+  ["filterTimestamp", "filterUser", "filterLogType", "filterDescription", "filterAmount", "filterStatus"]
+    .forEach(id => $(id)?.addEventListener("input", render));
+  ["filterLogType", "filterStatus"].forEach(id => $(id)?.addEventListener("change", render));
 
   $("toggleSync")?.addEventListener("click",()=>{
     $("syncPanel")?.classList.toggle("hidden");

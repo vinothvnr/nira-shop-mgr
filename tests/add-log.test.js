@@ -182,6 +182,7 @@ const context = {
   JSON,
   Error,
   Array,
+  fetch: async () => ({ json: async () => ({ ok: true, logs: [] }) }),
   atob(value) {
     return Buffer.from(value, "base64").toString("binary");
   }

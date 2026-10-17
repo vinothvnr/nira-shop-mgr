@@ -163,6 +163,29 @@ td {
   text-align: left;
 }
 
+.log-filters th {
+  vertical-align: top;
+  min-width: 125px;
+}
+
+.log-filters label {
+  display: block;
+  white-space: nowrap;
+}
+
+.log-filters input,
+.log-filters select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  margin-top: 7px;
+  padding: 7px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12px;
+}
+
 .auth {
   text-align: center;
   max-width: 550px;
@@ -345,6 +368,41 @@ td {
 
 .jira-table table {
   min-width: 980px;
+}
+
+.vendor-status-group {
+  margin-bottom: 20px;
+  padding: 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #f8fbff;
+}
+
+.vendor-status-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.vendor-status-heading h3 {
+  margin: 0;
+  color: #172b4d;
+}
+
+.vendor-status-group .table {
+  max-height: 520px;
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.vendor-status-group thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #eff6ff;
 }
 
 .ticket-key {
