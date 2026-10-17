@@ -130,7 +130,7 @@ vm.createContext(context);
 document.dispatchEvent({ type: "DOMContentLoaded" });
 context.Auth.isLoggedIn = () => false;
 
-const defaultUrl = "https://script.google.com/a/macros/nirasupermart.in/s/AKfycbyMTelZHmsaQljQNrsxL_TTZ52hjmO4_2d4Iae8QKiCup8w_iHlsYmFyzDpyGACAwN1aA/exec";
+const defaultUrl = "https://script.google.com/macros/s/AKfycbzl2PjCxTos6w0CUJyFO93pBzHz8BnfAbeQjsgD6ZlZKDeGPUORVZUv_2AFgS3pFmDw3g/exec";
 assert.strictEqual(document.getElementById("sheetUrl").value, defaultUrl, "sync URL should be filled by default");
 
 function submitLog({ type = "Log", status = "NA", description, amount = "" }) {
