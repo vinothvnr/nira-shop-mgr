@@ -80,10 +80,10 @@ function createLocalStorage() {
 }
 
 const ids = [
-  "toast", "syncStatus", "syncDetails", "amountField", "amount", "logType", "dashboardDate", "statsGrid",
+  "toast", "syncStatus", "syncDetails", "amountField", "amount", "dayCloseFields", "cashCounter1", "cashCounter2", "paytmTotal", "posSalesTotal", "logType", "dashboardDate", "statsGrid",
   "searchInput", "logTableBody", "emptyState", "logForm", "description", "status", "saveBtn", "cancelEditBtn",
   "toggleSync", "syncPanel", "sheetUrl", "saveSheetUrl", "syncNow", "dashboardToday", "dashboardTabBtn",
-  "trendTabBtn", "dashboardPanel", "trendsPanel", "dailyLogChart", "cashFlowChart", "cashCountChart", "statusChart",
+  "trendTabBtn", "dashboardPanel", "trendsPanel", "dailyLogChart", "cashFlowChart", "cashCountChart", "statusChart", "dayCloseChart",
   "loginCard", "appContent", "loginBtn", "logoutBtn", "userSubtitle", "googleButton", "statusHelp", "logsPage",
   "ticketsPage", "logsPageBtn", "ticketsPageBtn", "ticketNavCount", "ticketSummary", "workflowStrip", "refreshTickets",
   "ticketTableBody", "ticketEmptyState", "filterTimestamp", "filterUser", "filterLogType", "filterDescription",
@@ -97,6 +97,7 @@ document.getElementById("logType").value = "Log";
 document.getElementById("status").value = "NA";
 
 let serverNextTicket = 999;
+let confirmationMessage = "";
 async function mockFetch(_url, options) {
   const body = JSON.parse(options.body);
   const byId = {};
@@ -119,7 +120,11 @@ async function mockFetch(_url, options) {
 const context = {
   console, document, localStorage, window: null, Date, Math, Number, String, JSON, Error, Array,
   setTimeout() {}, clearTimeout() {},
-  fetch: mockFetch
+  fetch: mockFetch,
+  confirm: message => {
+    confirmationMessage = message;
+    return true;
+  }
 };
 context.window = context;
 vm.createContext(context);
@@ -141,10 +146,29 @@ function submitLog({ type = "Log", status = "NA", description, amount = "" }) {
   document.getElementById("logForm").dispatchEvent({ type: "submit", preventDefault() {} });
 }
 
+function setDayCloseFields({ cashCounter1, cashCounter2, paytmTotal, posSalesTotal }) {
+  document.getElementById("cashCounter1").value = String(cashCounter1);
+  document.getElementById("cashCounter2").value = String(cashCounter2);
+  document.getElementById("paytmTotal").value = String(paytmTotal);
+  document.getElementById("posSalesTotal").value = String(posSalesTotal);
+}
+
 async function runFeatureTests() {
 submitLog({ description: "Searchable alpha record" });
 submitLog({ type: "Cashin", description: "Numeric amount record", amount: "1250" });
 await context.SheetsSync.sync();
+
+setDayCloseFields({ cashCounter1: 500, cashCounter2: 100, paytmTotal: 200, posSalesTotal: 600 });
+submitLog({ type: "Day close", description: "Ignored for generated Day close details" });
+let dayClose = JSON.parse(localStorage.getItem("logbook_v3_logs")).find(log => log.logType === "Day close");
+assert(dayClose, "Day close should be stored as a log");
+assert.strictEqual(dayClose.amount, -1050, "Day close amount should store the calculated shortage");
+assert(confirmationMessage.includes("Cash counter 1: 500.00"), "Day close confirmation should show entered amounts");
+assert(confirmationMessage.includes("Shortage: 1050.00"), "Day close confirmation should show discrepancy classification");
+assert(dayClose.description.includes("Cash counter 1: 500.00"));
+assert(dayClose.description.includes("Day's total cashin: 1250.00"));
+assert(dayClose.description.includes("Shortage: 1050.00"));
+context.renderTrends();
 
 const searchInput = document.getElementById("searchInput");
 searchInput.value = "alpha";
@@ -177,6 +201,8 @@ assert(vendorHtml.includes("vendor-status-group"), "Vendor tracking should rende
 assert(vendorHtml.includes("Ordered"), "Vendor tracking should include the Ordered table");
 assert(vendorHtml.includes("Received"), "Vendor tracking should include the Received table");
 assert(vendorHtml.includes("NIRA-1000"), "Vendor tracking should display numeric ticket IDs");
+assert(vendorHtml.includes("Next: Received"), "Vendor tracking should provide a next-state action");
+assert(!vendorHtml.includes("<th>Status</th>"), "Vendor tracking tables should not show a status column");
 assert(!vendorHtml.includes("Last Change"), "Vendor tracking should not show Last Change");
 assert(!vendorHtml.includes("Source log:"), "Vendor summaries should not show Source log");
 

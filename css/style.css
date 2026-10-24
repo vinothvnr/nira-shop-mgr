@@ -56,6 +56,13 @@ body {
   gap: 15px;
 }
 
+.day-close-fields {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 15px;
+}
+
 label {
   font-size: 13px;
   font-weight: 700;
@@ -294,6 +301,10 @@ td {
     grid-template-columns: 1fr;
   }
 
+  .day-close-fields {
+    grid-template-columns: 1fr;
+  }
+
   .stats {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -403,6 +414,12 @@ td {
   top: 0;
   z-index: 1;
   background: #eff6ff;
+}
+
+.vendor-status-group td:last-child .btn {
+  display: block;
+  margin: 4px 8px 4px 0;
+  white-space: nowrap;
 }
 
 .ticket-key {

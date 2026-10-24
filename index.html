@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Nira Log Book</title>
-  <link rel="stylesheet" href="css/style.css?v=6.4">
+  <link rel="stylesheet" href="css/style.css?v=6.5">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <header class="topbar">
     <div>
-      <h1>Nira Log Book <span id="appVersion" class="version">v6.4</span></h1>
+      <h1>Nira Log Book <span id="appVersion" class="version">v6.5</span></h1>
       <p id="userSubtitle">Activity & cash log</p>
     </div>
     <div class="actions">
@@ -44,6 +44,7 @@
                   <option>Log</option>
                   <option>Cashin</option>
                   <option>Cashout</option>
+                  <option>Day close</option>
                   <option>Distributor visit</option>
                   <option>Cust. Feedback</option>
                 </select>
@@ -54,6 +55,20 @@
               <label id="amountField" class="hidden">Amount
                 <input id="amount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
               </label>
+              <div id="dayCloseFields" class="day-close-fields hidden">
+                <label>Cash counter 1
+                  <input id="cashCounter1" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+                </label>
+                <label>Cash counter 2
+                  <input id="cashCounter2" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+                </label>
+                <label>Paytm total
+                  <input id="paytmTotal" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+                </label>
+                <label>POS Sales total
+                  <input id="posSalesTotal" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+                </label>
+              </div>
               <label>Status
                 <select id="status">
                   <option>NA</option>
@@ -109,6 +124,7 @@
               <div class="chart-card"><h3>Cashin / Cashout Amount</h3><canvas id="cashFlowChart"></canvas></div>
               <div class="chart-card"><h3>Cashin / Cashout Count</h3><canvas id="cashCountChart"></canvas></div>
               <div class="chart-card"><h3>Status Counts</h3><canvas id="statusChart"></canvas></div>
+              <div class="chart-card"><h3>Day Close Discrepancy</h3><canvas id="dayCloseChart"></canvas></div>
             </div>
           </div>
         </section>
@@ -124,7 +140,7 @@
                 <tr>
                   <th><label for="filterTimestamp">Timestamp</label><input id="filterTimestamp" type="date" aria-label="Filter by timestamp"></th>
                   <th><label for="filterUser">User</label><input id="filterUser" type="search" placeholder="Filter" aria-label="Filter by user"></th>
-                  <th><label for="filterLogType">Log Type</label><select id="filterLogType" aria-label="Filter by log type"><option value="">All</option><option>Log</option><option>Cashin</option><option>Cashout</option><option>Distributor visit</option><option>Cust. Feedback</option></select></th>
+                  <th><label for="filterLogType">Log Type</label><select id="filterLogType" aria-label="Filter by log type"><option value="">All</option><option>Log</option><option>Cashin</option><option>Cashout</option><option>Day close</option><option>Distributor visit</option><option>Cust. Feedback</option></select></th>
                   <th><label for="filterDescription">Description</label><input id="filterDescription" type="search" placeholder="Filter" aria-label="Filter by description"></th>
                   <th><label for="filterAmount">Amount</label><input id="filterAmount" type="number" min="0" step="0.01" placeholder="Any" aria-label="Filter by amount"></th>
                   <th><label for="filterStatus">Status</label><select id="filterStatus" aria-label="Filter by status"><option value="">All</option><option>NA</option><option>Ordered</option><option>Received</option><option>Payment pending</option><option>Paid cheque</option><option>Paid cash</option><option>Inventory added</option></select></th>
@@ -155,9 +171,9 @@
   </main>
 
   <div id="toast" class="toast"></div>
-  <script src="js/storage.js?v=6.4"></script>
-  <script src="js/auth.js?v=6.4"></script>
-  <script src="js/sheets.js?v=6.4"></script>
-  <script src="js/app.js?v=6.4"></script>
+  <script src="js/storage.js?v=6.5"></script>
+  <script src="js/auth.js?v=6.5"></script>
+  <script src="js/sheets.js?v=6.5"></script>
+  <script src="js/app.js?v=6.5"></script>
 </body>
 </html>

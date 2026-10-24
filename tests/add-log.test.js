@@ -254,4 +254,18 @@ assert.strictEqual(advanced.ticketStatusHistory.length, 2);
 assert.strictEqual(advanced.ticketStatusHistory[1].status, "Received");
 assert.strictEqual(advanced.ticketStatusHistory[1].userName, "Tester");
 
+context.advanceTicket(ticket.id, "Payment pending");
+context.advanceTicket(ticket.id, "Paid cash");
+logs = JSON.parse(localStorage.getItem("logbook_v3_logs") || "[]");
+const paidCash = logs.find(log => log.id === ticket.id);
+assert.strictEqual(paidCash.status, "Paid cash", "Payment pending should branch directly to Paid cash");
+
+context.advanceTicket(ticket.id, "Paid cheque");
+logs = JSON.parse(localStorage.getItem("logbook_v3_logs") || "[]");
+assert.strictEqual(logs.find(log => log.id === ticket.id).status, "Paid cash", "Paid cash should not transition to Paid cheque");
+
+context.advanceTicket(ticket.id, "Payment pending");
+logs = JSON.parse(localStorage.getItem("logbook_v3_logs") || "[]");
+assert.strictEqual(logs.find(log => log.id === ticket.id).status, "Payment pending", "Previous action should return to Payment pending");
+
 console.log("add-log and ticket workflow regression tests passed");

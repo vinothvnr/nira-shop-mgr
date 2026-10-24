@@ -5,6 +5,22 @@ const $ = id => document.getElementById(id);
 const GOOGLE_CLIENT_ID = "99773349762-ok4gijm3iedsqu7alk1k61vur86n7v3j.apps.googleusercontent.com";
 const TICKET_STATUS_FLOW = ["Ordered", "Received", "Payment pending", "Paid cheque", "Paid cash", "Inventory added"];
 const FINAL_TICKET_STATUS = TICKET_STATUS_FLOW[TICKET_STATUS_FLOW.length - 1];
+const TICKET_NEXT_STATES = {
+  "Ordered": ["Received"],
+  "Received": ["Payment pending"],
+  "Payment pending": ["Paid cash", "Paid cheque"],
+  "Paid cash": ["Inventory added"],
+  "Paid cheque": ["Inventory added"],
+  "Inventory added": []
+};
+const TICKET_PREVIOUS_STATES = {
+  "Ordered": [],
+  "Received": ["Ordered"],
+  "Payment pending": ["Received"],
+  "Paid cash": ["Payment pending"],
+  "Paid cheque": ["Payment pending"],
+  "Inventory added": ["Paid cash", "Paid cheque"]
+};
 
 function msg(text) {
   const t = $("toast");
@@ -20,8 +36,16 @@ function esc(v) {
   }[c]));
 }
 
+function isDayClose(type) {
+  return type === "Day close";
+}
+
 function amountApplicable(type) {
   return type === "Cashin" || type === "Cashout";
+}
+
+function amountRecorded(type) {
+  return amountApplicable(type) || isDayClose(type);
 }
 
 function isDistributorVisit(type) {
@@ -46,8 +70,20 @@ function statusIndex(status) {
 }
 
 function nextTicketStatus(status) {
-  const index = statusIndex(status);
-  return index >= 0 && index < TICKET_STATUS_FLOW.length - 1 ? TICKET_STATUS_FLOW[index + 1] : "";
+  return nextTicketStatuses(status)[0] || "";
+}
+
+function nextTicketStatuses(status) {
+  return TICKET_NEXT_STATES[status] || [];
+}
+
+function previousTicketStatuses(ticket) {
+  if (ticket?.status === FINAL_TICKET_STATUS) {
+    const history = ticketHistory(ticket);
+    const previous = history.length > 1 ? history[history.length - 2]?.status : "";
+    if (previous && TICKET_PREVIOUS_STATES[FINAL_TICKET_STATUS].includes(previous)) return [previous];
+  }
+  return TICKET_PREVIOUS_STATES[ticket?.status] || [];
 }
 
 function ticketKey(log) {
@@ -118,10 +154,8 @@ function validateTicketTransition(type, status, old) {
     return true;
   }
 
-  const oldIndex = statusIndex(old.status);
-  const newIndex = statusIndex(status);
-  if (oldIndex >= 0 && newIndex !== oldIndex && newIndex !== oldIndex + 1) {
-    msg(`Move tickets one step at a time: ${old.status} to ${nextTicketStatus(old.status) || old.status}`);
+  if (old.status !== status && !nextTicketStatuses(old.status).includes(status) && !previousTicketStatuses(old).includes(status)) {
+    msg(`Invalid ticket transition from ${old.status} to ${status}`);
     return false;
   }
 
@@ -182,14 +216,46 @@ function updateStatus() {
 function toggleAmount() {
   const type = $("logType")?.value || "Log";
   const enabled = amountApplicable(type);
+  const dayClose = isDayClose(type);
   const ticketRequired = isDistributorVisit(type);
   $("amountField")?.classList.toggle("hidden", !enabled);
+  $("dayCloseFields")?.classList.toggle("hidden", !dayClose);
   $("statusHelp")?.classList.toggle("hidden", !ticketRequired);
   if ($("amount")) {
     $("amount").required = enabled;
     if (!enabled) $("amount").value = "";
   }
   if ($("status")) $("status").required = ticketRequired;
+  if ($("description")) $("description").required = !dayClose;
+  ["cashCounter1", "cashCounter2", "paytmTotal", "posSalesTotal"].forEach(id => {
+    const field = $(id);
+    if (field) field.required = dayClose;
+  });
+}
+
+function dayCloseDetails(logs, date) {
+  const value = id => Number($(id)?.value);
+  const cashCounter1 = value("cashCounter1");
+  const cashCounter2 = value("cashCounter2");
+  const paytmTotal = value("paytmTotal");
+  const posSalesTotal = value("posSalesTotal");
+  const dayLogs = logs.filter(log => dateKey(log.timestamp) === date);
+  const dayCashout = dayLogs.filter(log => log.logType === "Cashout").reduce((sum, log) => sum + (Number(log.amount) || 0), 0);
+  const dayCashin = dayLogs.filter(log => log.logType === "Cashin").reduce((sum, log) => sum + (Number(log.amount) || 0), 0);
+  const discrepancy = cashCounter1 + cashCounter2 + paytmTotal + dayCashout - dayCashin - posSalesTotal;
+  const outcome = discrepancy > 0 ? "Excess cash" : discrepancy < 0 ? "Shortage" : "Balanced";
+  const money = amount => Number(amount).toFixed(2);
+  const description = [
+    `Day close (${date})`,
+    `Cash counter 1: ${money(cashCounter1)}`,
+    `Cash counter 2: ${money(cashCounter2)}`,
+    `Paytm total: ${money(paytmTotal)}`,
+    `Day's total cashout: ${money(dayCashout)}`,
+    `Day's total cashin: ${money(dayCashin)}`,
+    `POS Sales total: ${money(posSalesTotal)}`,
+    `${outcome}: ${money(Math.abs(discrepancy))}`
+  ].join(" | ");
+  return { cashCounter1, cashCounter2, paytmTotal, posSalesTotal, dayCashout, dayCashin, discrepancy, outcome, description };
 }
 
 function renderDashboard(logs) {
@@ -271,7 +337,7 @@ function renderLogs(logs) {
       <td class="user-cell">${esc(x.userName || "Unknown")}</td>
       <td>${esc(x.logType || "")}</td>
       <td>${esc(x.description || "")}</td>
-      <td class="amount-cell">${amountApplicable(x.logType) ? fmt(x.amount) : "-"}</td>
+      <td class="amount-cell">${amountRecorded(x.logType) ? fmt(x.amount) : "-"}</td>
       <td>${esc(x.status || "")}</td>
     </tr>
   `).join("");
@@ -293,11 +359,16 @@ function renderTickets(logs) {
       <div class="table jira-table">
         <table>
           <thead>
-            <tr><th>Ticket ID</th><th>Summary</th><th>Created By</th><th>Created</th><th>Status</th><th>Action</th></tr>
+            <tr><th>Ticket ID</th><th>Summary</th><th>Created By</th><th>Created</th><th>Action</th></tr>
           </thead>
           <tbody>
             ${rows.map(ticket => {
-              const next = nextTicketStatus(ticket.status);
+              const next = nextTicketStatuses(ticket.status);
+              const previous = previousTicketStatuses(ticket);
+              const actions = [
+                ...previous.map(status => `<button type="button" class="btn secondary small" data-ticket-action-id="${esc(ticket.id)}" data-ticket-status="${esc(status)}">Previous: ${esc(status)}</button>`),
+                ...next.map(status => `<button type="button" class="btn primary small" data-ticket-action-id="${esc(ticket.id)}" data-ticket-status="${esc(status)}">Next: ${esc(status)}</button>`)
+              ].join("");
               const createdAt = ticket.ticketCreatedAt || ticket.timestamp;
               return `
                 <tr>
@@ -305,11 +376,10 @@ function renderTickets(logs) {
                   <td><div class="ticket-summary">${esc(ticket.description || "")}</div></td>
                   <td>${esc(ticket.ticketCreatedBy || ticket.userName || "Unknown")}</td>
                   <td>${createdAt ? esc(new Date(createdAt).toLocaleString("en-IN")) : "-"}</td>
-                  <td><span class="status-lozenge">${esc(ticket.status || "")}</span></td>
-                  <td>${next ? `<button type="button" class="btn primary small" data-advance-ticket-id="${esc(ticket.id)}">Move to ${esc(next)}</button>` : "-"}</td>
+                  <td>${actions || "-"}</td>
                 </tr>
               `;
-            }).join("") || `<tr><td colspan="6" class="muted">No vendor records in this status.</td></tr>`}
+            }).join("") || `<tr><td colspan="5" class="muted">No vendor records in this status.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -343,18 +413,18 @@ function showPage(page) {
   if (tickets) renderTickets(getLogs());
 }
 
-function advanceTicket(id) {
+function advanceTicket(id, targetStatus) {
   const logs = LogStore.getAll();
   const ticket = logs.find(item => item.id === id && isTicket(item));
   if (!ticket) return;
 
-  const next = nextTicketStatus(ticket.status);
-  if (!next) return;
+  const target = targetStatus || nextTicketStatus(ticket.status);
+  if (!target || !validateTicketTransition(ticket.logType, target, ticket)) return;
 
   const user = Auth.getUser() || {};
   const updated = applyTicketWorkflow({
     ...ticket,
-    status: next,
+    status: target,
     updatedAt: new Date().toISOString(),
     updatedBy: user.email || ""
   }, ticket, user);
@@ -364,7 +434,7 @@ function advanceTicket(id) {
   render();
   renderTrends();
   sync();
-  msg(`Ticket moved to ${next}`);
+  msg(`Ticket moved to ${target}`);
 }
 function drawChart(id, labels, datasets) {
   const canvas = $(id);
@@ -382,7 +452,11 @@ function drawChart(id, labels, datasets) {
   const pad = {l:42,r:12,t:24,b:34};
   const pw = w-pad.l-pad.r, ph = h-pad.t-pad.b;
   const values = datasets.flatMap(d => d.data.map(v => Number(v)||0));
-  const max = Math.max(1, ...values);
+  let minValue = Math.min(0, ...values);
+  let maxValue = Math.max(0, ...values);
+  if (minValue === maxValue) maxValue = minValue + 1;
+  const range = maxValue - minValue;
+  const yForValue = value => pad.t + ph - ((value - minValue) / range) * ph;
 
   ctx.font = "11px sans-serif";
   ctx.strokeStyle = "#ddd";
@@ -390,7 +464,12 @@ function drawChart(id, labels, datasets) {
   for(let i=0;i<=4;i++){
     const y=pad.t+ph*i/4;
     ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(w-pad.r,y); ctx.stroke();
-    ctx.fillText(String(Math.round(max*(1-i/4))),3,y+4);
+    ctx.fillText(String(Math.round(maxValue-range*i/4)),3,y+4);
+  }
+  if (minValue < 0 && maxValue > 0) {
+    const zeroY = yForValue(0);
+    ctx.strokeStyle = "#999";
+    ctx.beginPath(); ctx.moveTo(pad.l, zeroY); ctx.lineTo(w-pad.r, zeroY); ctx.stroke();
   }
 
   const n=labels.length;
@@ -409,7 +488,7 @@ function drawChart(id, labels, datasets) {
     ds.data.forEach((raw,i)=>{
       const v=Number(raw)||0;
       const x=pad.l+(n===1?pw/2:pw*i/(n-1));
-      const y=pad.t+ph-(v/max)*ph;
+      const y=yForValue(v);
       if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
     });
     ctx.stroke();
@@ -417,7 +496,7 @@ function drawChart(id, labels, datasets) {
     ds.data.forEach((raw,i)=>{
       const v=Number(raw)||0;
       const x=pad.l+(n===1?pw/2:pw*i/(n-1));
-      const y=pad.t+ph-(v/max)*ph;
+      const y=yForValue(v);
       ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fill();
     });
     ctx.fillText(ds.label,pad.l+di*120,14);
@@ -448,11 +527,13 @@ function renderTrends() {
   const pending=days.map(a=>a.filter(x=>x.status==="Payment pending").length);
   const ordered=days.map(a=>a.filter(x=>x.status==="Ordered").length);
   const received=days.map(a=>a.filter(x=>x.status==="Received").length);
+  const dayCloseDiscrepancy=days.map(a=>a.filter(x=>x.logType==="Day close").reduce((sum,x)=>sum+(Number(x.amount)||0),0));
 
   drawChart("dailyLogChart",labels,[{label:"Logs",data:logsCount,color:"#2563eb"}]);
   drawChart("cashFlowChart",labels,[{label:"Cashin",data:cashin,color:"#16a34a"},{label:"Cashout",data:cashout,color:"#dc2626"}]);
   drawChart("cashCountChart",labels,[{label:"Cashin",data:cashinCount,color:"#16a34a"},{label:"Cashout",data:cashoutCount,color:"#dc2626"}]);
   drawChart("statusChart",labels,[{label:"Pending",data:pending,color:"#f59e0b"},{label:"Ordered",data:ordered,color:"#7c3aed"},{label:"Received",data:received,color:"#0891b2"}]);
+  drawChart("dayCloseChart",labels,[{label:"Discrepancy",data:dayCloseDiscrepancy,color:"#ea580c"}]);
 }
 
 function render() {
@@ -486,6 +567,7 @@ function resetForm() {
   $("logForm")?.reset();
   if($("logType")) $("logType").value="Log";
   if($("status")) $("status").value="NA";
+  ["cashCounter1", "cashCounter2", "paytmTotal", "posSalesTotal"].forEach(id => { if ($(id)) $(id).value = ""; });
   if($("saveBtn")) $("saveBtn").textContent="Add Log";
   $("cancelEditBtn")?.classList.add("hidden");
   toggleAmount();
@@ -516,11 +598,35 @@ function bindAppEvents() {
     const old=editId ? LogStore.getAll().find(x=>x.id===editId) : null;
     const user=Auth.getUser()||{};
     const type=$("logType")?.value||"Log";
-    const description=($("description")?.value||"").trim();
+    let description=($("description")?.value||"").trim();
     const amount=amountApplicable(type) ? Number($("amount")?.value) : null;
     const status=$("status")?.value||"NA";
 
-    if(!description){msg("Enter a description");return;}
+    let closeDetails = null;
+    if (isDayClose(type)) {
+      const fields = ["cashCounter1", "cashCounter2", "paytmTotal", "posSalesTotal"];
+      if (fields.some(id => !Number.isFinite(Number($(id)?.value)) || Number($(id)?.value) < 0)) {
+        msg("Enter valid Day close amounts");
+        return;
+      }
+      const date = old?.timestamp ? dateKey(old.timestamp) : todayKey();
+      closeDetails = dayCloseDetails(getLogs(), date);
+      const confirmation = [
+        `Day close for ${date}`,
+        `Cash counter 1: ${closeDetails.cashCounter1.toFixed(2)}`,
+        `Cash counter 2: ${closeDetails.cashCounter2.toFixed(2)}`,
+        `Paytm total: ${closeDetails.paytmTotal.toFixed(2)}`,
+        `Day's total cashout: ${closeDetails.dayCashout.toFixed(2)}`,
+        `Day's total cashin: ${closeDetails.dayCashin.toFixed(2)}`,
+        `POS Sales total: ${closeDetails.posSalesTotal.toFixed(2)}`,
+        `${closeDetails.outcome}: ${Math.abs(closeDetails.discrepancy).toFixed(2)}`,
+        "\nSave this Day close?"
+      ].join("\n");
+      if (typeof window.confirm === "function" && !window.confirm(confirmation)) return;
+      description = closeDetails.description;
+    }
+
+    if(!description && !isDayClose(type)){msg("Enter a description");return;}
     if(amountApplicable(type) && (!Number.isFinite(amount)||amount<0)){
       msg("Enter a valid amount");return;
     }
@@ -531,7 +637,7 @@ function bindAppEvents() {
       timestamp:old?.timestamp||new Date().toISOString(),
       logType:type,
       description,
-      amount,
+      amount: isDayClose(type) ? closeDetails.discrepancy : amount,
       status,
       userName:old?.userName||user.name||user.email||"Unknown",
       updatedAt:new Date().toISOString(),
@@ -550,8 +656,8 @@ function bindAppEvents() {
   });
 
   $("ticketTableBody")?.addEventListener("click",e=>{
-    const advance=e.target.closest("[data-advance-ticket-id]");
-    if(advance) advanceTicket(advance.dataset.advanceTicketId);
+    const action=e.target.closest("[data-ticket-action-id]");
+    if(action) advanceTicket(action.dataset.ticketActionId, action.dataset.ticketStatus);
   });
 
   $("logsPageBtn")?.addEventListener("click",()=>showPage("logs"));
