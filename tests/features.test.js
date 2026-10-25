@@ -80,7 +80,7 @@ function createLocalStorage() {
 }
 
 const ids = [
-  "toast", "syncStatus", "syncDetails", "amountField", "amount", "dayCloseFields", "cashCounter1", "cashCounter2", "paytmTotal", "posSalesTotal", "logType", "dashboardDate", "statsGrid",
+  "toast", "syncStatus", "syncDetails", "amountField", "amount", "dayCloseFields", "sessionBreakFields", "sessionBreakFrom", "sessionBreakTo", "cashCounter1", "cashCounter2", "paytmTotal", "posSalesTotal", "logType", "dashboardDate", "statsGrid",
   "searchInput", "logTableBody", "emptyState", "logForm", "description", "status", "saveBtn", "cancelEditBtn",
   "toggleSync", "syncPanel", "sheetUrl", "saveSheetUrl", "syncNow", "dashboardToday", "dashboardTabBtn",
   "trendTabBtn", "dashboardPanel", "trendsPanel", "dailyLogChart", "cashFlowChart", "cashCountChart", "statusChart", "dayCloseChart",
@@ -98,7 +98,9 @@ document.getElementById("status").value = "NA";
 
 let serverNextTicket = 999;
 let confirmationMessage = "";
+let syncRequests = 0;
 async function mockFetch(_url, options) {
+  syncRequests++;
   const body = JSON.parse(options.body);
   const byId = {};
   [...(body.logs?.localLogs || []), ...(body.logs?.pendingLogs || [])].forEach(log => {
@@ -153,7 +155,14 @@ function setDayCloseFields({ cashCounter1, cashCounter2, paytmTotal, posSalesTot
   document.getElementById("posSalesTotal").value = String(posSalesTotal);
 }
 
+function setSessionBreakFields({ from, to, cashCounter1, cashCounter2, paytmTotal, posSalesTotal }) {
+  document.getElementById("sessionBreakFrom").value = from;
+  document.getElementById("sessionBreakTo").value = to;
+  setDayCloseFields({ cashCounter1, cashCounter2, paytmTotal, posSalesTotal });
+}
+
 async function runFeatureTests() {
+assert(syncRequests >= 1, "page load should trigger an automatic Google Sheets sync");
 submitLog({ description: "Searchable alpha record" });
 submitLog({ type: "Cashin", description: "Numeric amount record", amount: "1250" });
 await context.SheetsSync.sync();
@@ -168,6 +177,29 @@ assert(confirmationMessage.includes("Shortage: 1050.00"), "Day close confirmatio
 assert(dayClose.description.includes("Cash counter 1: 500.00"));
 assert(dayClose.description.includes("Day's total cashin: 1250.00"));
 assert(dayClose.description.includes("Shortage: 1050.00"));
+
+setSessionBreakFields({ from: "Morning", to: "Afternoon", cashCounter1: 100, cashCounter2: 50, paytmTotal: 25, posSalesTotal: 0 });
+submitLog({ type: "Session break", description: "Ignored for generated Session break details" });
+let sessionBreak = JSON.parse(localStorage.getItem("logbook_v3_logs")).find(log => log.logType === "Session break");
+assert(sessionBreak, "Session break should be stored as a log");
+assert.strictEqual(sessionBreak.amount, -1075, "Session break amount should use the Day close calculation");
+assert.strictEqual(sessionBreak.from, "Morning", "Session break should store From");
+assert.strictEqual(sessionBreak.to, "Afternoon", "Session break should store To");
+assert(sessionBreak.description.includes("From: Morning"));
+assert(sessionBreak.description.includes("To: Afternoon"));
+assert(confirmationMessage.includes("From: Morning"));
+assert(confirmationMessage.includes("To: Afternoon"));
+
+const previousDay = new Date(Date.now() - 86400000).toISOString();
+context.LogStore.upsert({ id: "previous-day-log", timestamp: previousDay, logType: "Log", description: "Previous day record", amount: null, status: "NA", userName: "Tester" });
+document.getElementById("dashboardDate").value = context.todayKey();
+context.render();
+assert(!document.getElementById("logTableBody").innerHTML.includes("Previous day record"), "Logs table should hide logs outside the selected dashboard date");
+document.getElementById("dashboardDate").value = context.dateKey(previousDay);
+context.render();
+assert(document.getElementById("logTableBody").innerHTML.includes("Previous day record"), "Logs table should show logs for the selected dashboard date");
+document.getElementById("dashboardDate").value = context.todayKey();
+context.render();
 context.renderTrends();
 
 const searchInput = document.getElementById("searchInput");

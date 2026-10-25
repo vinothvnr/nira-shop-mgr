@@ -40,12 +40,20 @@ function isDayClose(type) {
   return type === "Day close";
 }
 
+function isSessionBreak(type) {
+  return type === "Session break";
+}
+
+function isCloseType(type) {
+  return isDayClose(type) || isSessionBreak(type);
+}
+
 function amountApplicable(type) {
   return type === "Cashin" || type === "Cashout";
 }
 
 function amountRecorded(type) {
-  return amountApplicable(type) || isDayClose(type);
+  return amountApplicable(type) || isCloseType(type);
 }
 
 function isDistributorVisit(type) {
@@ -216,9 +224,10 @@ function updateStatus() {
 function toggleAmount() {
   const type = $("logType")?.value || "Log";
   const enabled = amountApplicable(type);
-  const dayClose = isDayClose(type);
+  const dayClose = isCloseType(type);
   const ticketRequired = isDistributorVisit(type);
   $("amountField")?.classList.toggle("hidden", !enabled);
+  $("sessionBreakFields")?.classList.toggle("hidden", !isSessionBreak(type));
   $("dayCloseFields")?.classList.toggle("hidden", !dayClose);
   $("statusHelp")?.classList.toggle("hidden", !ticketRequired);
   if ($("amount")) {
@@ -231,9 +240,16 @@ function toggleAmount() {
     const field = $(id);
     if (field) field.required = dayClose;
   });
+  ["sessionBreakFrom", "sessionBreakTo"].forEach(id => {
+    const field = $(id);
+    if (field) {
+      field.required = isSessionBreak(type);
+      if (!isSessionBreak(type)) field.value = "";
+    }
+  });
 }
 
-function dayCloseDetails(logs, date) {
+function dayCloseDetails(logs, date, type = "Day close") {
   const value = id => Number($(id)?.value);
   const cashCounter1 = value("cashCounter1");
   const cashCounter2 = value("cashCounter2");
@@ -245,8 +261,11 @@ function dayCloseDetails(logs, date) {
   const discrepancy = cashCounter1 + cashCounter2 + paytmTotal + dayCashout - dayCashin - posSalesTotal;
   const outcome = discrepancy > 0 ? "Excess cash" : discrepancy < 0 ? "Shortage" : "Balanced";
   const money = amount => Number(amount).toFixed(2);
+  const from = $("sessionBreakFrom")?.value.trim() || "";
+  const to = $("sessionBreakTo")?.value.trim() || "";
   const description = [
-    `Day close (${date})`,
+    `${type} (${date})`,
+    ...(isSessionBreak(type) ? [`From: ${from}`, `To: ${to}`] : []),
     `Cash counter 1: ${money(cashCounter1)}`,
     `Cash counter 2: ${money(cashCounter2)}`,
     `Paytm total: ${money(paytmTotal)}`,
@@ -255,7 +274,7 @@ function dayCloseDetails(logs, date) {
     `POS Sales total: ${money(posSalesTotal)}`,
     `${outcome}: ${money(Math.abs(discrepancy))}`
   ].join(" | ");
-  return { cashCounter1, cashCounter2, paytmTotal, posSalesTotal, dayCashout, dayCashin, discrepancy, outcome, description };
+  return { cashCounter1, cashCounter2, paytmTotal, posSalesTotal, dayCashout, dayCashin, discrepancy, outcome, from, to, description };
 }
 
 function renderDashboard(logs) {
@@ -303,6 +322,8 @@ function renderDashboard(logs) {
 }
 
 function renderLogs(logs) {
+  const selectedDate = selectedDashboardDate();
+  const dateFiltered = logs.filter(x => dateKey(x.timestamp) === selectedDate);
   const query = ($("searchInput")?.value || "").trim().toLowerCase();
   const timestampFilter = $("filterTimestamp")?.value || "";
   const userFilter = ($("filterUser")?.value || "").trim().toLowerCase();
@@ -310,7 +331,7 @@ function renderLogs(logs) {
   const descriptionFilter = ($("filterDescription")?.value || "").trim().toLowerCase();
   const amountFilter = $("filterAmount")?.value || "";
   const statusFilter = $("filterStatus")?.value || "";
-  const filtered = !query ? logs : logs.filter(x => {
+  const filtered = !query ? dateFiltered : dateFiltered.filter(x => {
     const timestamp = x.timestamp ? new Date(x.timestamp).toLocaleString("en-IN") : "";
     return [timestamp, x.description, x.logType, x.status, x.userName, x.amount]
       .map(value => String(value ?? ""))
@@ -527,7 +548,7 @@ function renderTrends() {
   const pending=days.map(a=>a.filter(x=>x.status==="Payment pending").length);
   const ordered=days.map(a=>a.filter(x=>x.status==="Ordered").length);
   const received=days.map(a=>a.filter(x=>x.status==="Received").length);
-  const dayCloseDiscrepancy=days.map(a=>a.filter(x=>x.logType==="Day close").reduce((sum,x)=>sum+(Number(x.amount)||0),0));
+  const dayCloseDiscrepancy=days.map(a=>a.filter(x=>isCloseType(x.logType)).reduce((sum,x)=>sum+(Number(x.amount)||0),0));
 
   drawChart("dailyLogChart",labels,[{label:"Logs",data:logsCount,color:"#2563eb"}]);
   drawChart("cashFlowChart",labels,[{label:"Cashin",data:cashin,color:"#16a34a"},{label:"Cashout",data:cashout,color:"#dc2626"}]);
@@ -567,7 +588,7 @@ function resetForm() {
   $("logForm")?.reset();
   if($("logType")) $("logType").value="Log";
   if($("status")) $("status").value="NA";
-  ["cashCounter1", "cashCounter2", "paytmTotal", "posSalesTotal"].forEach(id => { if ($(id)) $(id).value = ""; });
+  ["cashCounter1", "cashCounter2", "paytmTotal", "posSalesTotal", "sessionBreakFrom", "sessionBreakTo"].forEach(id => { if ($(id)) $(id).value = ""; });
   if($("saveBtn")) $("saveBtn").textContent="Add Log";
   $("cancelEditBtn")?.classList.add("hidden");
   toggleAmount();
@@ -603,16 +624,21 @@ function bindAppEvents() {
     const status=$("status")?.value||"NA";
 
     let closeDetails = null;
-    if (isDayClose(type)) {
+    if (isCloseType(type)) {
       const fields = ["cashCounter1", "cashCounter2", "paytmTotal", "posSalesTotal"];
       if (fields.some(id => !Number.isFinite(Number($(id)?.value)) || Number($(id)?.value) < 0)) {
-        msg("Enter valid Day close amounts");
+        msg(`Enter valid ${type} amounts`);
+        return;
+      }
+      if (isSessionBreak(type) && (!( $("sessionBreakFrom")?.value || "").trim() || !( $("sessionBreakTo")?.value || "").trim())) {
+        msg("Enter both From and To values");
         return;
       }
       const date = old?.timestamp ? dateKey(old.timestamp) : todayKey();
-      closeDetails = dayCloseDetails(getLogs(), date);
+      closeDetails = dayCloseDetails(getLogs(), date, type);
       const confirmation = [
-        `Day close for ${date}`,
+        `${type} for ${date}`,
+        ...(isSessionBreak(type) ? [`From: ${closeDetails.from}`, `To: ${closeDetails.to}`] : []),
         `Cash counter 1: ${closeDetails.cashCounter1.toFixed(2)}`,
         `Cash counter 2: ${closeDetails.cashCounter2.toFixed(2)}`,
         `Paytm total: ${closeDetails.paytmTotal.toFixed(2)}`,
@@ -620,13 +646,13 @@ function bindAppEvents() {
         `Day's total cashin: ${closeDetails.dayCashin.toFixed(2)}`,
         `POS Sales total: ${closeDetails.posSalesTotal.toFixed(2)}`,
         `${closeDetails.outcome}: ${Math.abs(closeDetails.discrepancy).toFixed(2)}`,
-        "\nSave this Day close?"
+        `\nSave this ${type}?`
       ].join("\n");
       if (typeof window.confirm === "function" && !window.confirm(confirmation)) return;
       description = closeDetails.description;
     }
 
-    if(!description && !isDayClose(type)){msg("Enter a description");return;}
+    if(!description && !isCloseType(type)){msg("Enter a description");return;}
     if(amountApplicable(type) && (!Number.isFinite(amount)||amount<0)){
       msg("Enter a valid amount");return;
     }
@@ -637,7 +663,8 @@ function bindAppEvents() {
       timestamp:old?.timestamp||new Date().toISOString(),
       logType:type,
       description,
-      amount: isDayClose(type) ? closeDetails.discrepancy : amount,
+      amount: isCloseType(type) ? closeDetails.discrepancy : amount,
+      ...(isSessionBreak(type) ? { from: closeDetails.from, to: closeDetails.to } : {}),
       status,
       userName:old?.userName||user.name||user.email||"Unknown",
       updatedAt:new Date().toISOString(),
@@ -801,6 +828,7 @@ function init(){
     render();
     renderTrends();
     initGoogleLogin();
+    sync();
   }catch(e){
     console.error("Nira Log Book initialization error:",e);
     msg("App initialization error");

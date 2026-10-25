@@ -45,6 +45,7 @@
                   <option>Cashin</option>
                   <option>Cashout</option>
                   <option>Day close</option>
+                  <option>Session break</option>
                   <option>Distributor visit</option>
                   <option>Cust. Feedback</option>
                 </select>
@@ -55,6 +56,14 @@
               <label id="amountField" class="hidden">Amount
                 <input id="amount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
               </label>
+              <div id="sessionBreakFields" class="day-close-fields hidden">
+                <label>From
+                  <input id="sessionBreakFrom" type="text" maxlength="200" placeholder="Starting session">
+                </label>
+                <label>To
+                  <input id="sessionBreakTo" type="text" maxlength="200" placeholder="Ending session">
+                </label>
+              </div>
               <div id="dayCloseFields" class="day-close-fields hidden">
                 <label>Cash counter 1
                   <input id="cashCounter1" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
@@ -109,7 +118,7 @@
           <div class="dashboard-controls">
             <label>Dashboard Date
               <input id="dashboardDate" type="date">
-              <small class="muted">Applies to daily totals only</small>
+              <small class="muted">Applies to dashboard totals and the Logs table</small>
             </label>
             <button id="dashboardToday" class="btn secondary" type="button">Today</button>
           </div>
@@ -140,7 +149,7 @@
                 <tr>
                   <th><label for="filterTimestamp">Timestamp</label><input id="filterTimestamp" type="date" aria-label="Filter by timestamp"></th>
                   <th><label for="filterUser">User</label><input id="filterUser" type="search" placeholder="Filter" aria-label="Filter by user"></th>
-                  <th><label for="filterLogType">Log Type</label><select id="filterLogType" aria-label="Filter by log type"><option value="">All</option><option>Log</option><option>Cashin</option><option>Cashout</option><option>Day close</option><option>Distributor visit</option><option>Cust. Feedback</option></select></th>
+                  <th><label for="filterLogType">Log Type</label><select id="filterLogType" aria-label="Filter by log type"><option value="">All</option><option>Log</option><option>Cashin</option><option>Cashout</option><option>Day close</option><option>Session break</option><option>Distributor visit</option><option>Cust. Feedback</option></select></th>
                   <th><label for="filterDescription">Description</label><input id="filterDescription" type="search" placeholder="Filter" aria-label="Filter by description"></th>
                   <th><label for="filterAmount">Amount</label><input id="filterAmount" type="number" min="0" step="0.01" placeholder="Any" aria-label="Filter by amount"></th>
                   <th><label for="filterStatus">Status</label><select id="filterStatus" aria-label="Filter by status"><option value="">All</option><option>NA</option><option>Ordered</option><option>Received</option><option>Payment pending</option><option>Paid cheque</option><option>Paid cash</option><option>Inventory added</option></select></th>
