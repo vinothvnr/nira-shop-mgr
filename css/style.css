@@ -262,7 +262,15 @@ td {
 }
 
 .user-cell {
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.log-table td:nth-child(3),
+.log-table th:nth-child(3) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .dashboard-controls {
@@ -345,6 +353,28 @@ td {
   .actions {
     flex-wrap: wrap;
   }
+
+  .log-table {
+    font-size: 10px;
+  }
+
+  .log-table th,
+  .log-table td {
+    padding: 5px 3px;
+  }
+
+  .log-table th:nth-child(1),
+  .log-table td:nth-child(1) { width: 14%; }
+  .log-table th:nth-child(2),
+  .log-table td:nth-child(2) { width: 15%; }
+  .log-table th:nth-child(3),
+  .log-table td:nth-child(3) { width: 14%; }
+  .log-table th:nth-child(4),
+  .log-table td:nth-child(4) { width: 35%; }
+  .log-table th:nth-child(5),
+  .log-table td:nth-child(5) { width: 10%; }
+  .log-table th:nth-child(6),
+  .log-table td:nth-child(6) { width: 12%; }
 }
 
 .version {
