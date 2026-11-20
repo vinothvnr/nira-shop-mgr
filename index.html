@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Nira Log Book</title>
-  <link rel="stylesheet" href="css/style.css?v=6.5">
+  <link rel="stylesheet" href="css/style.css?v=6.6">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <header class="topbar">
     <div>
-      <h1>Nira Log Book <span id="appVersion" class="version">v6.5</span></h1>
+      <h1>Nira Log Book <span id="appVersion" class="version">v6.6</span></h1>
       <p id="userSubtitle">Activity & cash log</p>
     </div>
     <div class="actions">
@@ -105,6 +105,7 @@
             <div class="actions">
               <button id="toggleSync" class="btn secondary small">Show Sync Settings</button>
               <button id="syncNow" class="btn secondary small">Sync Now</button>
+              <button id="pauseSyncBtn" class="btn secondary small hidden" type="button">Pause Sync</button>
             </div>
           </div>
           <div id="syncPanel" class="hidden">
@@ -144,7 +145,7 @@
             <input id="searchInput" class="search" placeholder="Search...">
           </div>
           <div class="table">
-            <table>
+            <table class="log-table">
               <thead class="log-filters">
                 <tr>
                   <th><label for="filterTimestamp">Timestamp</label><input id="filterTimestamp" type="date" aria-label="Filter by timestamp"></th>
@@ -180,9 +181,24 @@
   </main>
 
   <div id="toast" class="toast"></div>
-  <script src="js/storage.js?v=6.5"></script>
-  <script src="js/auth.js?v=6.5"></script>
-  <script src="js/sheets.js?v=6.5"></script>
-  <script src="js/app.js?v=6.5"></script>
+  <div id="closeConfirmModal" class="close-modal hidden" role="dialog" aria-modal="true" aria-labelledby="closeConfirmTitle">
+    <div class="close-modal-card">
+      <button id="closeConfirmCancel" class="close-modal-x" type="button" aria-label="Cancel">×</button>
+      <h2 id="closeConfirmTitle"></h2>
+      <div id="closeConfirmResult" class="close-result"></div>
+      <div class="close-summary-layout">
+        <div id="closeConfirmEmoji" class="close-result-emoji" aria-hidden="true"></div>
+        <table class="close-modal-table"><tbody id="closeConfirmRows"></tbody></table>
+      </div>
+      <div class="close-modal-actions">
+        <button id="closeConfirmNo" class="btn secondary" type="button">Cancel</button>
+        <button id="closeConfirmYes" class="btn primary" type="button">Save to Log</button>
+      </div>
+    </div>
+  </div>
+  <script src="js/storage.js?v=6.6"></script>
+  <script src="js/auth.js?v=6.6"></script>
+  <script src="js/sheets.js?v=6.6"></script>
+  <script src="js/app.js?v=6.6"></script>
 </body>
 </html>

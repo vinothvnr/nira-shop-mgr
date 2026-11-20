@@ -3,6 +3,8 @@
 let editId = null;
 const $ = id => document.getElementById(id);
 const GOOGLE_CLIENT_ID = "99773349762-ok4gijm3iedsqu7alk1k61vur86n7v3j.apps.googleusercontent.com";
+const SYNC_PAUSE_USER = "vinoth.ece2010@gmail.com";
+const SYNC_PAUSE_KEY = "logbook_v3_sync_paused";
 const TICKET_STATUS_FLOW = ["Ordered", "Received", "Payment pending", "Paid cheque", "Paid cash", "Inventory added"];
 const FINAL_TICKET_STATUS = TICKET_STATUS_FLOW[TICKET_STATUS_FLOW.length - 1];
 const TICKET_NEXT_STATES = {
@@ -209,16 +211,47 @@ function getLogs() {
   }
 }
 
+function renderLogDescription(log) {
+  const description = String(log.description || "");
+  if (!isCloseType(log.logType) || !description.includes(" | ")) return esc(description);
+
+  const rows = description.split(" | ").map(part => {
+    const separator = part.indexOf(": ");
+    const outcomeClass = part.startsWith("Shortage:") ? "shortage" : part.startsWith("Excess cash:") ? "excess" : part.startsWith("Balanced:") ? "balanced" : "";
+    return separator < 0
+      ? `<tr><th colspan="2">${esc(part)}</th></tr>`
+      : `<tr class="${outcomeClass}"><th>${esc(part.slice(0, separator))}</th><td>${esc(part.slice(separator + 2))}</td></tr>`;
+  }).join("");
+
+  return `<table class="close-description-table"><tbody>${rows}</tbody></table>`;
+}
+
 function updateStatus() {
   if (!window.SheetsSync) return;
   try {
     const n = SheetsSync.queue().length;
     const connected = !!SheetsSync.getUrl();
-    if ($("syncStatus")) $("syncStatus").textContent = connected ? (n ? `${n} pending` : "Synced") : "Local only";
-    if ($("syncDetails")) $("syncDetails").textContent = connected ? (n ? `${n} pending sync` : "Two-way sync enabled") : "Settings hidden";
+    if ($("syncStatus")) $("syncStatus").textContent = isSyncPaused() ? "Sync paused" : connected ? (n ? `${n} pending` : "Synced") : "Local only";
+    if ($("syncDetails")) $("syncDetails").textContent = isSyncPaused() ? "Testing locally; Google Sheets sync is paused" : connected ? (n ? `${n} pending sync` : "Two-way sync enabled") : "Settings hidden";
   } catch (e) {
     console.error("Sync status error:", e);
   }
+}
+
+function canPauseSync() {
+  return String(Auth.getUser()?.email || "").toLowerCase() === SYNC_PAUSE_USER;
+}
+
+function isSyncPaused() {
+  return canPauseSync() && localStorage.getItem(SYNC_PAUSE_KEY) === "true";
+}
+
+function setSyncPaused(value) {
+  if (value) localStorage.setItem(SYNC_PAUSE_KEY, "true");
+  else localStorage.removeItem(SYNC_PAUSE_KEY);
+  const button = $("pauseSyncBtn");
+  if (button) button.textContent = value ? "Resume Sync" : "Pause Sync";
+  updateStatus();
 }
 
 function toggleAmount() {
@@ -357,7 +390,7 @@ function renderLogs(logs) {
       <td>${x.timestamp ? esc(new Date(x.timestamp).toLocaleString("en-IN")) : "-"}</td>
       <td class="user-cell">${esc(x.userName || "Unknown")}</td>
       <td>${esc(x.logType || "")}</td>
-      <td>${esc(x.description || "")}</td>
+      <td>${renderLogDescription(x)}</td>
       <td class="amount-cell">${amountRecorded(x.logType) ? fmt(x.amount) : "-"}</td>
       <td>${esc(x.status || "")}</td>
     </tr>
@@ -566,7 +599,7 @@ function render() {
 }
 
 async function sync() {
-  if(!Auth.isLoggedIn() || !SheetsSync.getUrl()) {
+  if(isSyncPaused() || !Auth.isLoggedIn() || !SheetsSync.getUrl()) {
     render();
     return;
   }
@@ -609,19 +642,113 @@ function buttonFeedback(btn,busy,done) {
   },700);
 }
 
+async function syncBeforeSave() {
+  if(isSyncPaused() || !Auth.isLoggedIn() || !SheetsSync.getUrl()) return;
+  await SheetsSync.sync();
+  render();
+  renderTrends();
+}
+
+function closeOutcome(discrepancy) {
+  if (discrepancy < 0) return { className: "shortage", label: "Shortage", emoji: "😢" };
+  if (discrepancy > 0) return { className: "excess", label: "Excess cash", emoji: "😮" };
+  return { className: "balanced", label: "Balanced", emoji: "🙂" };
+}
+
+async function confirmClose(type, date, details) {
+  const modal = $("closeConfirmModal");
+  const rows = $("closeConfirmRows");
+  if (!modal || !rows) {
+    const confirmation = [
+      `${type} for ${date}`,
+      ...(isSessionBreak(type) ? [`From: ${details.from}`, `To: ${details.to}`] : []),
+      `Cash counter 1: ${details.cashCounter1.toFixed(2)}`,
+      `Cash counter 2: ${details.cashCounter2.toFixed(2)}`,
+      `Paytm total: ${details.paytmTotal.toFixed(2)}`,
+      `Day's total cashout: ${details.dayCashout.toFixed(2)}`,
+      `Day's total cashin: ${details.dayCashin.toFixed(2)}`,
+      `POS Sales total: ${details.posSalesTotal.toFixed(2)}`,
+      `${details.outcome}: ${Math.abs(details.discrepancy).toFixed(2)}`,
+      `\nSave this ${type}?`
+    ].join("\n");
+    return typeof window.confirm !== "function" || window.confirm(confirmation);
+  }
+
+  const outcome = closeOutcome(details.discrepancy);
+  const title = $("closeConfirmTitle");
+  const result = $("closeConfirmResult");
+  const emoji = $("closeConfirmEmoji");
+  const card = modal.querySelector?.(".close-modal-card");
+  if (title) title.textContent = `${type} · ${date}`;
+  if (emoji) {
+    emoji.textContent = outcome.emoji;
+    emoji.className = `close-result-emoji ${outcome.className}`;
+  }
+  if (result) {
+    result.textContent = `${outcome.label}: ${Math.abs(details.discrepancy).toFixed(2)}`;
+    result.className = `close-result ${outcome.className}`;
+  }
+  if (card) card.className = `close-modal-card ${outcome.className}`;
+
+  const values = [
+    ...(isSessionBreak(type) ? [["From", details.from], ["To", details.to]] : []),
+    ["Cash counter 1", details.cashCounter1.toFixed(2)],
+    ["Cash counter 2", details.cashCounter2.toFixed(2)],
+    ["Paytm total", details.paytmTotal.toFixed(2)],
+    ["Day's total cashout", details.dayCashout.toFixed(2)],
+    ["Day's total cashin", details.dayCashin.toFixed(2)],
+    ["POS Sales total", details.posSalesTotal.toFixed(2)]
+  ];
+  rows.innerHTML = values.map(([label, value]) => `<tr><th>${esc(label)}</th><td>${esc(value)}</td></tr>`).join("");
+  modal.classList.remove("hidden");
+
+  return new Promise(resolve => {
+    const yes = $("closeConfirmYes");
+    const no = $("closeConfirmNo");
+    const cancel = $("closeConfirmCancel");
+    const finish = value => {
+      modal.classList.add("hidden");
+      yes?.removeEventListener("click", onYes);
+      no?.removeEventListener("click", onNo);
+      cancel?.removeEventListener("click", onNo);
+      resolve(value);
+    };
+    const onYes = () => finish(true);
+    const onNo = () => finish(false);
+    yes?.addEventListener("click", onYes);
+    no?.addEventListener("click", onNo);
+    cancel?.addEventListener("click", onNo);
+    yes?.focus?.();
+  });
+}
+
 function bindAppEvents() {
   $("logType")?.addEventListener("change",toggleAmount);
 
-  $("logForm")?.addEventListener("submit",e=>{
+  $("logForm")?.addEventListener("submit",async e=>{
     e.preventDefault();
     if(!window.LogStore || !window.Auth) return;
 
-    const old=editId ? LogStore.getAll().find(x=>x.id===editId) : null;
     const user=Auth.getUser()||{};
     const type=$("logType")?.value||"Log";
     let description=($("description")?.value||"").trim();
     const amount=amountApplicable(type) ? Number($("amount")?.value) : null;
     const status=$("status")?.value||"NA";
+
+    if(!description && !isCloseType(type)){msg("Enter a description");return;}
+    if(amountApplicable(type) && (!Number.isFinite(amount)||amount<0)){
+      msg("Enter a valid amount");return;
+    }
+    buttonFeedback($("saveBtn"),"Syncing...",null);
+    try {
+      await syncBeforeSave();
+    } catch(e) {
+      console.error("Pre-save sync failed:",e);
+      msg(`Sync failed: ${e?.message || "Unknown sync error"}`);
+      return;
+    }
+
+    const old=editId ? LogStore.getAll().find(x=>x.id===editId) : null;
 
     let closeDetails = null;
     if (isCloseType(type)) {
@@ -636,26 +763,10 @@ function bindAppEvents() {
       }
       const date = old?.timestamp ? dateKey(old.timestamp) : todayKey();
       closeDetails = dayCloseDetails(getLogs(), date, type);
-      const confirmation = [
-        `${type} for ${date}`,
-        ...(isSessionBreak(type) ? [`From: ${closeDetails.from}`, `To: ${closeDetails.to}`] : []),
-        `Cash counter 1: ${closeDetails.cashCounter1.toFixed(2)}`,
-        `Cash counter 2: ${closeDetails.cashCounter2.toFixed(2)}`,
-        `Paytm total: ${closeDetails.paytmTotal.toFixed(2)}`,
-        `Day's total cashout: ${closeDetails.dayCashout.toFixed(2)}`,
-        `Day's total cashin: ${closeDetails.dayCashin.toFixed(2)}`,
-        `POS Sales total: ${closeDetails.posSalesTotal.toFixed(2)}`,
-        `${closeDetails.outcome}: ${Math.abs(closeDetails.discrepancy).toFixed(2)}`,
-        `\nSave this ${type}?`
-      ].join("\n");
-      if (typeof window.confirm === "function" && !window.confirm(confirmation)) return;
+      if (!(await confirmClose(type, date, closeDetails))) return;
       description = closeDetails.description;
     }
 
-    if(!description && !isCloseType(type)){msg("Enter a description");return;}
-    if(amountApplicable(type) && (!Number.isFinite(amount)||amount<0)){
-      msg("Enter a valid amount");return;
-    }
     if(!validateTicketTransition(type,status,old)) return;
 
     let record={
@@ -715,6 +826,12 @@ function bindAppEvents() {
   $("syncNow")?.addEventListener("click",()=>{
     buttonFeedback($("syncNow"),"Syncing...","Synced OK");
     sync();
+  });
+
+  $("pauseSyncBtn")?.addEventListener("click",()=>{
+    if(!canPauseSync()) return;
+    setSyncPaused(!isSyncPaused());
+    msg(isSyncPaused() ? "Google Sheets sync paused" : "Google Sheets sync resumed");
   });
 
   $("dashboardDate")?.addEventListener("change",()=>{render();renderTrends();});
@@ -794,6 +911,9 @@ function authUI(){
   $("appContent")?.classList.toggle("hidden",!logged);
   $("loginBtn")?.classList.toggle("hidden",logged);
   $("logoutBtn")?.classList.toggle("hidden",!logged);
+  const pauseButton = $("pauseSyncBtn");
+  pauseButton?.classList.toggle("hidden",!logged || !canPauseSync());
+  if (pauseButton) pauseButton.textContent = isSyncPaused() ? "Resume Sync" : "Pause Sync";
   if($("userSubtitle")) $("userSubtitle").textContent=logged?`Signed in: ${Auth.getUser()?.email||""}`:"Activity & cash log";
   if(logged) render();
 }

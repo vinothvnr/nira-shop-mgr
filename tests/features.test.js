@@ -35,7 +35,7 @@ class Element {
   }
   dispatchEvent(event) {
     event.target = event.target || this;
-    (this.listeners[event.type] || []).forEach(handler => handler(event));
+    return Promise.all((this.listeners[event.type] || []).map(handler => handler(event)));
   }
   reset() {
     ["description", "amount"].forEach(id => {
@@ -145,7 +145,7 @@ function submitLog({ type = "Log", status = "NA", description, amount = "" }) {
   document.getElementById("status").value = status;
   document.getElementById("description").value = description;
   document.getElementById("amount").value = amount;
-  document.getElementById("logForm").dispatchEvent({ type: "submit", preventDefault() {} });
+  return document.getElementById("logForm").dispatchEvent({ type: "submit", preventDefault() {} });
 }
 
 function setDayCloseFields({ cashCounter1, cashCounter2, paytmTotal, posSalesTotal }) {
@@ -163,12 +163,12 @@ function setSessionBreakFields({ from, to, cashCounter1, cashCounter2, paytmTota
 
 async function runFeatureTests() {
 assert(syncRequests >= 1, "page load should trigger an automatic Google Sheets sync");
-submitLog({ description: "Searchable alpha record" });
-submitLog({ type: "Cashin", description: "Numeric amount record", amount: "1250" });
+await submitLog({ description: "Searchable alpha record" });
+await submitLog({ type: "Cashin", description: "Numeric amount record", amount: "1250" });
 await context.SheetsSync.sync();
 
 setDayCloseFields({ cashCounter1: 500, cashCounter2: 100, paytmTotal: 200, posSalesTotal: 600 });
-submitLog({ type: "Day close", description: "Ignored for generated Day close details" });
+await submitLog({ type: "Day close", description: "Ignored for generated Day close details" });
 let dayClose = JSON.parse(localStorage.getItem("logbook_v3_logs")).find(log => log.logType === "Day close");
 assert(dayClose, "Day close should be stored as a log");
 assert.strictEqual(dayClose.amount, -1050, "Day close amount should store the calculated shortage");
@@ -179,7 +179,7 @@ assert(dayClose.description.includes("Day's total cashin: 1250.00"));
 assert(dayClose.description.includes("Shortage: 1050.00"));
 
 setSessionBreakFields({ from: "Morning", to: "Afternoon", cashCounter1: 100, cashCounter2: 50, paytmTotal: 25, posSalesTotal: 0 });
-submitLog({ type: "Session break", description: "Ignored for generated Session break details" });
+await submitLog({ type: "Session break", description: "Ignored for generated Session break details" });
 let sessionBreak = JSON.parse(localStorage.getItem("logbook_v3_logs")).find(log => log.logType === "Session break");
 assert(sessionBreak, "Session break should be stored as a log");
 assert.strictEqual(sessionBreak.amount, -1075, "Session break amount should use the Day close calculation");
@@ -189,6 +189,23 @@ assert(sessionBreak.description.includes("From: Morning"));
 assert(sessionBreak.description.includes("To: Afternoon"));
 assert(confirmationMessage.includes("From: Morning"));
 assert(confirmationMessage.includes("To: Afternoon"));
+
+await submitLog({ type: "Cashin", description: "Later session cashin", amount: "100" });
+await submitLog({ type: "Cashout", description: "Later session cashout", amount: "50" });
+setSessionBreakFields({ from: "Afternoon", to: "Evening", cashCounter1: 0, cashCounter2: 0, paytmTotal: 0, posSalesTotal: 0 });
+await submitLog({ type: "Session break", description: "Ignored for generated Session break details" });
+let logsAfterSessionBreak = JSON.parse(localStorage.getItem("logbook_v3_logs"));
+let secondSessionBreak = logsAfterSessionBreak.filter(log => log.logType === "Session break")[0];
+assert.strictEqual(secondSessionBreak.amount, -1300, "Session break should calculate the full day's cash movement");
+assert(logsAfterSessionBreak.some(log => log.description === "Searchable alpha record"), "earlier logs should remain after Session break");
+assert(logsAfterSessionBreak.some(log => log.description === "Later session cashin"), "cash-in should remain after Session break");
+assert(logsAfterSessionBreak.some(log => log.description === "Later session cashout"), "cash-out should remain after Session break");
+
+setDayCloseFields({ cashCounter1: 0, cashCounter2: 0, paytmTotal: 0, posSalesTotal: 0 });
+await submitLog({ type: "Day close", description: "Ignored for generated Day close details" });
+let finalDayClose = JSON.parse(localStorage.getItem("logbook_v3_logs")).filter(log => log.logType === "Day close")[0];
+assert(finalDayClose.description.includes("Day's total cashin: 1350.00"), "Day close should retain all day's cash-in values");
+assert(finalDayClose.description.includes("Day's total cashout: 50.00"), "Day close should retain all day's cash-out values");
 
 const previousDay = new Date(Date.now() - 86400000).toISOString();
 context.LogStore.upsert({ id: "previous-day-log", timestamp: previousDay, logType: "Log", description: "Previous day record", amount: null, status: "NA", userName: "Tester" });
@@ -220,8 +237,8 @@ const logHtml = document.getElementById("logTableBody").innerHTML;
 assert(!logHtml.includes("Edit"), "Logs table should not show Edit");
 assert(!logHtml.includes("Delete"), "Logs table should not show Delete");
 
-submitLog({ type: "Distributor visit", status: "Ordered", description: "Vendor 1" });
-submitLog({ type: "Distributor visit", status: "Ordered", description: "Vendor 2" });
+await submitLog({ type: "Distributor visit", status: "Ordered", description: "Vendor 1" });
+await submitLog({ type: "Distributor visit", status: "Ordered", description: "Vendor 2" });
 await context.SheetsSync.sync();
 context.render();
 let logs = JSON.parse(localStorage.getItem("logbook_v3_logs"));

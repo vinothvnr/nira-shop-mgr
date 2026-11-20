@@ -60,7 +60,7 @@ class Element {
 
   dispatchEvent(event) {
     event.target = event.target || this;
-    (this.listeners[event.type] || []).forEach(handler => handler(event));
+    return Promise.all((this.listeners[event.type] || []).map(handler => handler(event)));
   }
 
   reset() {
@@ -197,8 +197,10 @@ vm.createContext(context);
 
 document.dispatchEvent({ type: "DOMContentLoaded" });
 
+(async () => {
+
 document.getElementById("description").value = "Automated add log test";
-document.getElementById("logForm").dispatchEvent({
+await document.getElementById("logForm").dispatchEvent({
   type: "submit",
   preventDefault() {}
 });
@@ -215,7 +217,7 @@ assert.strictEqual(document.getElementById("emptyState").style.display, "none");
 document.getElementById("logType").value = "Distributor visit";
 document.getElementById("status").value = "NA";
 document.getElementById("description").value = "Distributor status missing";
-document.getElementById("logForm").dispatchEvent({
+await document.getElementById("logForm").dispatchEvent({
   type: "submit",
   preventDefault() {}
 });
@@ -227,7 +229,7 @@ assert.strictEqual(document.getElementById("toast").textContent, "Select a workf
 document.getElementById("logType").value = "Distributor visit";
 document.getElementById("status").value = "Ordered";
 document.getElementById("description").value = "Distributor workflow test";
-document.getElementById("logForm").dispatchEvent({
+await document.getElementById("logForm").dispatchEvent({
   type: "submit",
   preventDefault() {}
 });
@@ -269,3 +271,7 @@ logs = JSON.parse(localStorage.getItem("logbook_v3_logs") || "[]");
 assert.strictEqual(logs.find(log => log.id === ticket.id).status, "Payment pending", "Previous action should return to Payment pending");
 
 console.log("add-log and ticket workflow regression tests passed");
+})().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
